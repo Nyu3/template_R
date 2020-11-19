@@ -1,8 +1,9 @@
-## ?(´?`)? (´-`) .｡oO (Common function, 2020-09-15)
+## ?(´?`)? (´-`) .｡oO (Common function, 2018-12-03)
+
 
 ## General parameters == (2020-09-28) ========================
 gp. <- function(...) {
-  # skipMess.(suppressPackageStartupMessages('easypackages'::libraries(c('bindrcpp', 'hablar', 'lubridate', 'naturalsort', 'readxl', 'tidyverse'))))
+  # skipMess.('easypackages'::libraries(c('hablar', 'lubridate', 'readxl', 'tidyverse'))))
   # if (dev.list() > 0) dev.new(width = 3 * (1+ sqrt(5))/2, height = 3)  # 4.5, 3.3
   # quartz.options(width = 5.682819, height = 3.004405); dev.new(); par(mar = c(2.4, 3.3, 1.1, 2.8), tcl = 0.35)
   # windows(width = 4.5, height = 3.3)  # for Windows
@@ -13,8 +14,8 @@ gp. <- function(...) {
 }
 
 
-## Skip warning messages ================================================
-skipMess. <- function(x) suppressWarnings(suppressMessages(invisible(x)))
+## Skip warning messages == (2020-10-24) ================================================
+skipMess. <- function(x) suppressPackageStartupMessages(suppressWarnings(suppressMessages(invisible(x))))
 
 
 ## Path control == (2019-11-04) ================================================
@@ -29,61 +30,76 @@ setwd. <- function(...) {  # Needed to copy a file path on the console in advanc
 }  # setwd.()
 
 
-## Lightly vroom() == (2020-04-15) ========================
+## Lightly vroom() for csv == (2020-10-19) ========================
 vroom. <- function(file = NULL, col_names = T, skip = 0, n_max = Inf, ...) {
     if (Sys.getenv('OS') != '' && str_detect(file, pattern = '\\p{Hiragana}|\\p{Katakana}|\\p{Han}')) {
         out <- skipMess.(read_csv(file, locale = locale(encoding = 'cp932'), col_names = col_names, skip = skip, n_max = n_max))
     } else {  # for Mac
-        if (is.null(file)) {
-            file <- dir(pattern = 'csv|CSV|xls|xlsx') %>% {.[!str_detect(., '\\$')]} %>%
-                    {if (length(.) > 1) {chooseOne.(., '\"Target File\"')} else .}
+        File <<- file %||% {  # You can use the file name later in case of using write.()
+            dir(pattern = 'csv|CSV') %>% {.[!str_detect(., '\\$')]} %>% chooseOne.(., '\"Target File\"')
         }
-        out <- skipMess.('vroom'::vroom(file, locale = locale(encoding = 'cp932'), col_names = col_names, skip = skip, n_max = n_max))
-    }           
-    return (out)
+        out <- skipMess.('vroom'::vroom(File, locale = locale(encoding = 'cp932'), col_names = col_names, skip = skip, n_max = n_max))
+    }
+    return(out)
 }
 
 
-## Reading data == (2020-09-17) ================================================
-getData. <- function(filePath = NULL, file = NULL, timeSort = F, timeFactor = NULL, sheet = F, ...) {
-    oldDir <- getwd()
-    if (!is.null(filePath)) setwd(filePath)
-    if (is.null(file)) {
-        file <- dir(pattern = 'csv|CSV|xls|xlsx') %>% {.[!str_detect(., '\\$')]} %>%
-                {if (length(.) > 1) {chooseOne.(., '\"Target File\"')} else .}
-        if (length(file) == 0) stop('No data file in this directory...\n\n', call. = F)
-    }
-
-    if (str_detect(file, pattern = 'csv|CSV')) {
-        d <- vroom.(file, col_names = col_names, skip = skip)
-    } else if (str_detect(file, pattern = 'xls|xlsx')) {
-        if (sheet == TRUE) {
-            seqs <- excel_sheets(file) %>% parse_number()  # To mutate(sheet = ~), map_dfr() is not used
-            tenta <- map(seqs, ~ skipMess.(read_excel(file, sheet = ., col_names = col_names, skip = skip, n_max = n_max)))
-            d <- map(seqs, ~ mutate(tenta[[.]], sheet = .)) %>% bind_rows()
+## Reading data == (2020-10-30) ================================================
+getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, type = NULL, sheet_bind = T, ...) {
+    if (!is.null(path)) {
+        oldDir <- getwd()
+        if (str_detect(path, '\\.csv|\\.CSV|\\.xls|\\.xlsx')) {
+            file <- basename(path)
+            setwd(dirname(path))
         } else {
-            d <- skipMess.(read_excel(file, sheet = 1, col_names = T, skip = 0, n_max = Inf))
+            setwd(path)
         }
     }
-    d <- d %>% 'dplyr'::filter(rowSums(is.na(.)) != ncol(.)) %>% 'hablar'::retype() %>% dt2time.(., timeSort, timeFactor) %>%
-         mutate_if(., ~ is.character(.), ~ correctChr.(.)) %>% select_if(colSums(is.na(.)) != nrow(.))
+    File <<- file %||% {  # You can use the file name later in case of using write.()
+            dir(pattern = 'csv|CSV|xls|xlsx') %>% {.[!str_detect(., '\\$')]} %>% chooseOne.(., '\"Target File\"')
+    }
+    if (length(File) == 0) stop('No data file in this directory...\n\n', call. = F)
 
-    if (!is.null(filePath)) setwd(oldDir)
+    if (str_detect(File, pattern = 'csv|CSV')) {
+        d <- vroom.(File)
+    } else if (str_detect(File, pattern = 'xls|xlsx')) {
+        seqs <- excel_sheets(File)  # To mutate(sheet = ~), map_dfr() is not used
+        d_tenta <- map(seqs, ~ skipMess.(read_excel(File, sheet = ., col_names = T, skip = 0, n_max = Inf))) %>% set_names(seqs)  # list
+        d_ten2 <- map_lgl(d_tenta, ~ nrow(.) > 0) %>% d_tenta[.]  # no row data is diminished
+        same_set <- map(d_ten2, ~ names(.)) %>% map2_lgl(.[1], ., ~ setequal(.x, .y)) %>% all()
+        if (length(d_ten2) > 1 && same_set == TRUE && sheet_bind == TRUE){  # every sheet has the same data structure
+            d <- bind_rows(d_ten2)
+        } else {  # list
+            d <- d_ten2
+        }
+    }
+    ## cleaning
+    clean_data <- function(x) {
+        out <- x %>% 'dplyr'::filter(rowSums(is.na(.)) != ncol(.)) %>%
+               retype() %>%
+               dt2time.(., timeSort, timeFactor) %>%
+               mutate_if(., ~ is.character(.), ~ correctChr.(.)) %>%
+               select_if(colSums(is.na(.)) != nrow(.))
+        return (out)
+    }
+    d <- if (is.data.frame(d)) clean_data(d) else map(d, clean_data) %>% {if (length(.) == 1) .[[1]] else .}  # just one sheet --> tibble
+
+    if (!is.null(path)) setwd(oldDir)
     return (d)
 }
 
 
-## Set arguments in the function which you're trying to improve == (2020-09-16) ================================================
+## Set arguments in the function which you're trying to improve == (2020-11-11) ================================================
 lazy_arg. <- function(...) {  # Needed to copy a concerned argments in advance
     chrs <- pp.() %>% unlist()
     lazy_do <- function(chr, ...) {
         if(str_detect(chr, 'function')) {  # Delete 'name <- function(' part
-            chr <- str_locate(chr, 'function') %>% .[2] %>% {str_sub(chr, . +1, str_length(chr))}
+            chr <- str_locate(chr, 'function\\(') %>% .[2] %>% {str_sub(chr, . +1, str_length(chr))}
         }
         if (str_detect(chr, '#')) {  # Delete comment out
             chr <- str_locate(chr, '#') %>% .[2] %>% {str_sub(chr, 1, . -1)}
         }
-        chr2 <- gsub(',', ';', chr) %>% gsub('\\{|\\}|\\(|\\)|\\...', '', .) %>% gsub('vec;|x;|d;|df;|dt;|dL;', '', .) %>% str_squish(.)
+        chr2 <- gsub(',', ';', chr) %>% gsub('\\{|\\}|\\...)', '', .) %>% gsub('vec;|x;|d;|df;|dt;|dL;', '', .) %>% str_squish(.)
         eval(parse(text = chr2), envir = globalenv())
     }
     for (i in seq_along(chrs)) lazy_do(chrs[i])
@@ -129,7 +145,7 @@ is_quasi_period. <- function(x, ...) {
 
 
 ## Time style conversion in the tibble level == (2020-09-17) ================================================
-dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by getData.() & pp.()
+dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) { # Use this by getData.() & pp.()
     if (map_lgl(d, ~ is_quasi_time.(.) || is_quasi_period.(.)) %>% any() %>% `!`) return (d)
     if (is.data.frame(d) && nrow(d) == 0) return (d)  # Safety net for pp.() when copying a mere cell as vector
     ## Time style conversion in the vector level
@@ -174,7 +190,7 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 
 ## Powerful copy & paste == (2020-10-04) ================================================
 pp. <- function(...) {
-    type_taste <- function(d) d %>% 'hablar'::retype() %>% map_df(~ type_sum(.))
+    type_taste <- function(d) d %>% retype() %>% map_df(~ type_sum(.))
     type_watch <- function(d) {
         tenta <- pmin(nrow(d), 20) %>% {d[seq(.), ]}  # Using less than 20 rows to minimize the burden of processing of reading
         tenta_type <- map_dfr(1:nrow(tenta), function(i) type_taste(tenta[i, ]))
@@ -182,15 +198,15 @@ pp. <- function(...) {
 
         if (nrow(body_type) == 1) {  # No column names
             if (body_type %>% unlist() %>% unique() %>% length() > 1) {
-                out <- d %>% 'hablar'::retype() %>% dt2time.(., timeSort = F)
+                out <- d %>% retype() %>% dt2time.(., timeSort = F)
             } else if (ncol(d) == 1) {  # just vector you want
-                out <- d %>% 'hablar'::retype() %>% unlist()
+                out <- d %>% retype() %>% unlist()
             } else {  # just a body copy
                 out <- d
             }
         } else if (nrow(body_type) == 2 || nrow(body_type) > 4) {  # row1 = column names, row2 ~ body (Including copy of all chr data
           # d <- tibble(X1 = c('Animal','Bird','Cat','Dog')))  # Including all chr data
-            out <- d[-1, ] %>% 'hablar'::retype() %>% dt2time.(., timeSort = F) %>% set_names(d[1, ])
+            out <- d[-1, ] %>% retype() %>% dt2time.(., timeSort = F) %>% set_names(d[1, ])
         } else {  # row1~3 = colum names, other ~ body
             body_row1st <- tenta_type %>% group_by_all() %>% add_count() %>% .[['n']] %>% which.max()
             body_out <- d[-1:(-(body_row1st -1)), ]
@@ -207,7 +223,7 @@ pp. <- function(...) {
             trim_period <- str_sub(tit2, start = 1, end = 1) == '.'
             if (any(trim_period)) str_sub(tit2[trim_period], start = 1, end = 1) <- ''  # Distinguish '.' on the top location of names
 
-            out <- body_out %>% 'hablar'::retype() %>% dt2time.(., timeSort = F) %>% set_names(tit2)
+            out <- body_out %>% retype() %>% dt2time.(., timeSort = F) %>% set_names(tit2)
         }
         return (out)
     }
@@ -240,7 +256,7 @@ list2tibble. <- function(dL, ...) {
         if(length(tenta) != 0) dL[tenta] <- NA
         dL <- map(dL, ~ enframe(.) %>% .[, -1] %>% set_names(''))  # In case that the list is merely consisted of vectors
     } else {
-        dL <- map(dL, ~ as_tibble(., .name_repair = 'minimal'))  # In case that the list has a data.frame (x = ... , y = ...)
+        dL <- map(dL, ~ as_tibble(., .name_repair = 'minimal')) # In case that the list has a data.frame (x = ... , y = ...)
     }
     if (is.null(names(dL))) names(dL) <- str_c('List', seq_along(dL))  # Note: dL is all consited of tibble for now
 
@@ -251,12 +267,14 @@ list2tibble. <- function(dL, ...) {
 }  # list2tibble.(as.list(iris))
 
 
-## Transform any data to list == (2020-10-02) ================================================
+## Transform any data to list == (2020-11-10) ================================================
 dLformer. <- function(d, naturalOrder = F, ...) {  # naturalOrder = T/F, or desirable order like c(3, 4, 1, 2) accoding to the list's names
-    if (is.atomic(d)) dL <- tibble(d) %>% as.list(.)
-    if ('data.frame' %in% class(d)) {
+    if (is.atomic(d)){
+        dL <- tibble(d) %>% list()
+    } else if ('data.frame' %in% class(d)) {
+        d <- mutate_if(d, ~ is.factor(.), ~ as.character(.))
         numTF <- map_lgl(d, ~ is.numeric(.))
-        chrTF <- map_lgl(d, ~ is.factor(.) | is.character(.))
+        chrTF <- map_lgl(d, ~ is.character(.))
         timeTF <- map_lgl(d, ~ is_time.(.))
         if (all(numTF)) {  # [y1, y2, ...]
             dL <- as.list(d)  # %>% map(~as_tibble(.))
@@ -269,7 +287,7 @@ dLformer. <- function(d, naturalOrder = F, ...) {  # naturalOrder = T/F, or desi
                     return (aT)
                 }
                 d <- mutate_if(d, ~ is_time.(.), ~ abbre_time(.))
-                dL <- naturalorder(d[timeTF]) %>% d[., ] %>% split(., .[timeTF]) 
+                dL <- 'naturalsort'::naturalorder(d[timeTF]) %>% d[., ] %>% split(., .[timeTF])
             } else {  # [ID1, ID2, ..., y1, y2, ...] --> [y1, y2, ...]
                 dL <- d[numTF] %>% as.list(.)
             }
@@ -277,26 +295,25 @@ dLformer. <- function(d, naturalOrder = F, ...) {  # naturalOrder = T/F, or desi
     } else {  # In case of list
         dL <- d
     }
-    dL <- map(dL, ~ unlist(.) %>% .[!is.na(.)]) %>% {if (naturalOrder == TRUE) .[naturalorder(names(.))] else .}
+    dL <- dL %>% map(~ unlist(.) %>% .[!is.na(.)]) %>% {if (naturalOrder == TRUE) .['naturalsort'::naturalorder(names(.))] else .}
+
     return (dL)
-}  # dLformer.(iris[1]) dLformer.(iris[4:5]) dLformer.(iris[3:5])
+}  # dLformer.(iris[1])  dLformer.(iris[4:5])  dLformer.(iris[3:5])
 
 
-## Extract xy from dt as list == (2020-09-17) ================================================
+## Extract xy from dt as list == (2020-11-02) ================================================
 xyL. <- function(d, ...) {  # In case of data.frame [x1, y1, x2, y2, ...] --> [x1, y1], [x2, y2], ... as a list
     if (ncol(d) %% 2 != 0) stop('Make data column number even...\n\n', call. = F)
     out <- seq(ncol(d) /2) %>% map(~ d[c(2 *. -1, 2 *.)] %>% as_tibble())
     return (out)
-}  # plt.(psd[-1] %>% xyL.(.))
-xyL2. <- function(x, dy, ...) {  # In case of vector {x} & list or data.frame [y1, y2, ...] --> [x, y1], [x, y2], ... as a list
-    if (!is.list(dy)) {
-        stop('Make data list or data.frame constituded of only y...\n\n', call. = F)
-    } else if (is.data.frame(dy)) {
-        map2(rep(list(x), ncol(dy)), as.list(dy), ~ bind_cols(x = .x, y = .y)) %>% set_names(names(dy))
-    } else {
-        map2(rep(list(x), length(dy)), dy, ~ bind_cols(x = .x, y = .y)) %>% set_names(names(dy))
-    }
-}
+}  # xyL.(psd[-1]) %>% plt.
+
+xyL2. <- function(d, fix = 1, ...) {  # In case of [x, y1, y2, ...] --> [x, y1], [x, y2], ... as a list
+    if (!is.data.frame(d)) stop('Make data a data.frame...\n\n', call. = F)
+    fix <- abs(fix)  # In case of careless pointing negative value like -5
+    out <- map(seq_along(d)[-fix], ~ d[c(fix, .)]) %>% set_names(names(d)[-fix])
+    return (out)
+}  # xyL2.(iris, 5) %>% walk(., box2.)
 
 
 ## Split ID data into list in a tidy way == (2020-09-08) ========================
@@ -310,6 +327,22 @@ splits. <- function(d, ...) {
         as.list(d)
     }
 }  # splits.(iris)
+
+
+## Split a data into more / less case == (2020-10-28) ========================
+case2. <- function(d, div = NULL, percentage = T, ...) {
+    if ('list' %in% class(d) || is.null(div)) return (d)
+    if (is.atomic(d)) d <- tibble(d)
+    if (is.data.frame(d) && ncol(d) > 1) stop('Make the data with ONE column...\n\n', call. = F)
+    d <- d %>% filter(rowSums(is.na(.)) != ncol(.))
+    label <- case_when(d < div ~ str_c('x < ', div), TRUE ~ str_c('x ? ', div))
+    if (percentage == TRUE) {
+        per_chr <- formatC(100 *table(label) /length(label), format = 'f', digits = 1) %>% str_c(., '%')
+        label <- case_when(str_detect(label, '<') ~ str_c(label, '\n(', per_chr[1], ')'), TRUE ~ str_c(label, '\n(', per_chr[2], ')'))
+    }
+    out <- d %>% mutate(label)  # case_when in mutate() needs real column name ('d <' is incorrect)
+    return (out)
+}  # case2.(iris[3], div = 3) %>% box2.()
 
 
 ## HTML table == (2020-09-17) ================================================
@@ -349,8 +382,15 @@ base_stats. <- function(d, ...) {
 }  # base_stats.(iris) %>% html.(.)
 
 
-## Search for the nearest number of which the target vector is almost equal to the reference value == (2020-09-16) ============
-whichNear. <- function(vec, ref, back = F, ...) map_dbl(ref, ~ which(abs(vec -.) == min.(abs(vec -.))) %>% nth(., ifelse(back, -1, 1)))
+## Search for the nearest number of which the target vector is almost equal to the reference value == (2020-10-08) ============
+whichNear. <- function(vec, ref, back = F, ...) {
+    out <- if (is.numeric(c(vec, ref))) {
+        map_dbl(ref, ~ which(abs(vec -.) == min.(abs(vec -.))) %>% nth(., ifelse(back, -1, 1)))
+    } else {
+        map(ref, ~ str_which(vec, .) %>% if (length(.) == 0) NA else .)  # whichNear.(names(iris), c('Sepal|Width', 'Length'))
+    }
+    return (out)
+}
 
 ## Select just value you want according to a condition (sorry for misleading name); Note ref = sizeVec in length == (2019-11-14) ======
 whichSize. <- function(vec, ref, sizeVec, ...) whichNear.(vec, ref) %>% sizeVec[.]
@@ -383,7 +423,7 @@ hankana2zenkana. <- function(chr, ...) {
     chr <- gsub('　|  ', ' ', chr)
     ## Converting 1bite character
     out <- chartr('ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜｦﾝ｡｢｣､･ｦｧｨｩｪｫｬｭｮｯｰ',
-                  'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン。「」、・ヲァィゥェォャュョッー', chr)
+'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン。「」、・ヲァィゥェォャュョッー', chr)
     return (out)
 }
 
@@ -428,9 +468,10 @@ neatChr. <- function(chr, ...) {  # c('nya :: A', 'nya :: B') --> c('A', 'B')
 }
 
 
-## Interactive filter == (2020-09-17) ================================================
+## Interactive filter == (2020-10-12) ================================================
 chooseOne. <- function(factors, messText = NULL, freqs = NULL, chr = T, ...) {
-    ## freqs denotes each N of the factors, chr = T returns text (F returns number).
+    ## freqs denotes each N of the factors, chr = T returns text (F returns number)
+    factors <- unlist(factors)  # In case of X x 1 tibble
     if (length(factors) == 1) return (factors)
     tenta <- rep(NA_character_, length(factors))
     if (!is.null(freqs)) {
@@ -443,13 +484,13 @@ chooseOne. <- function(factors, messText = NULL, freqs = NULL, chr = T, ...) {
     for (i in seq_along(tenta)) tenta[i] <- str_c('     [', i, ']', ifelse(i < 10, '   ', '  '), factors[i], freqN[i], '\n')
     cat(str_c('\n      Choose one from below;\n\n'), tenta)
     repeat {
-        num <- readline(str_c('\n      Which No.', ifelse(is.null(messText), '', 'as '), messText, ' ?  \n\n   >>> '))
+        num <- readline(str_c('\n      Which No.', ifelse(is.null(messText), '', 'as '), messText, ' ?  \n\n >>> '))
         if (correctChr.(num) %>% {skipMess.(as.numeric(.))} %>% {!is.na(.)} ) {
             num <- correctChr.(num) %>% as.numeric(.)  # To gurantee your input as numeric
             if (num >= 1 && num <= length(factors)) break  # This if () restricts proper range and prohibit minus or oversized.
         }
     }
-    cat(str_c(str_dup('=', times = 75), '\n'))
+    cat(str_c(str_dup('=', times = 38), '\n'))
     return (ifelse(chr, factors[num], num))  # text or its number
 }
 
@@ -459,7 +500,7 @@ pr. <- function(vec, XYlims = NA, expand_ratio = 0.02, ...) {
     if ('list' %in% class(vec)) vec <- unlist(vec)
     vec[which(vec == Inf | vec == -Inf)] <- NA
     def.(c('Min', 'Max'), list(min.(vec), max.(vec)))  # Type free for vec, list, data.frame
-    ## Type numbering; complicated but needed to use each  '&'  '&&' below...
+    ## Type numbering; complicated but needed to use each  '&' '&&' below...
     range_type <- XYlims %>% { c(length(.) > 1 & c(!anyNA (.), is.na(.[1]), is.na(.[2])), is.na(.) && length(.) == 1)} %>% which(.)
     xyR <- list(XYlims, c(Min, XYlims[2]), c(XYlims[1], Max), c(Min, Max))[[range_type]]
     expand_direction  <-  list (c(0, 0), c(-1, 0), c(0, 1), c(-1, 1))[[range_type]]
@@ -483,7 +524,7 @@ n_cyc. <- function(num, n_max, ...) {
     return (out)
 }  # n_cyc.(11, 5) n_cyc.(1:3, 5) n_cyc.(c(1, NA, 9), 5)
 
-            
+
 ## Creat translucent color == (2020-02-07) ================================================
 colTr. <- function(color, tr, ...) {  # = adjustcolor(colors, tr, ...)
     if (is.null(color) || is.na(color) || color == 0) '#FFFFFF00' else rgb(t(col2rgb(color) /255), max = 1, alpha = tr)  #tr := transparency
@@ -559,10 +600,10 @@ haloText. <- function(x, y, labels, cex, col = 'grey13', bg = 'white', theta = s
 }
 
 
-## Optimum position of y-axis label == (2020-10-02) ================================================
+## Optimum position of y-axis label == (2020-10-21) ================================================
 yPos. <- function(Ylim2, ...) {
     axisFun.(Ylim2, n = 6)[[1]] %>% {.[between(., Ylim2[1], Ylim2[2])]} %>% {strwidth(.) /strwidth('|||')} %>% #{max(ceiling(.))}
-    max(.) %>% whichSize.(vec = c(1, 2, 3, 3.5, 4), ref = ., c(2.3, 1.5, 1.1, 1.1, 0.9))  # same adjust; -0.1, 0.1, 100
+    max(.) %>% whichSize.(vec = c(1, 2, 2.2, 3, 3.3, 4), ref = ., c(2.1, 1.9, 1.7, 1.4, 1.1, 0.9))  # same adjust; -0.1, 0.1, 100
 }
 
 
@@ -626,15 +667,16 @@ save2. <- function(name = NULL, wh = c(4.5, 3.3), ...) {
 }
 
 
-## Write list data to csv/xlsx file == (2020-09-17) ================================================
+## Write list data to csv/xlsx file == (2020-10-21) ================================================
 write. <- function(d, name = NULL, ...) {
     if ('list' %in% class(d)) d <- list2tibble.(d)
     name <- {name %||% today2.()} %>% {if (str_detect(., '\\.csv')) . else str_c (., '.csv')}
     write.csv(d, name, row.names = F, na = '', fileEncoding = 'cp932')
 }
-write2. <- function(dL, name = NULL, ...) {
-    if (!'list' %in% class(dL)) stop('Change the data into a list...\n\n', call. = F)
+write2. <- function(d, name = NULL, sheet = NULL, ...) {
+    dL <- if (!'list' %in% class(d)) list(d) else d
     if (is.null(names(dL))) names(dL) <- str_c('#', seq_along(dL))
+    if (!is.null(sheet)) names(dL) <- sheet
     'openxlsx'::write.xlsx(dL, file = str_c(name %||% today2.(), '.xlsx'))
 }  # write2.(list(iris, mtcars, chickwts, quakes))
 
@@ -654,15 +696,15 @@ gamXY. <- function(x, y, mdlGet = F, boost = F, n.boost = NULL, ...) {
         xyFit  <-  data.frame(x = qX, y = predict(minGCV, newdata = data.frame(x = qX)))
     } else if (boost == FALSE) {  # GAM model always ignores NA and needs arranged. Even a plot with NA looks vacant, the fitted line shows proper position.
         y[!is.na(y)] <- fitted(minGCV)  # Use NA info of original y and express unnatural appearance of vacant data
-        xyFit <- data.frame(x = x, y = y)             
+        xyFit <- data.frame(x = x, y = y)
     }
     return (xyFit)
 }
 
 
 ## Finding curve intersection; different (x, y) version;  not so accurate if df has not so many data points == (2020-01-23) ==
-## just vector but accurate analysis;  https://stackoverflow.com/questions/20519431/finding-point-of-intersection-in-r
-## another Ref;  https://stackoverflow.com/questions/31574382/intersection-between-density-plots-of-multiple-groups
+## just vector but accurate analysis; https://stackoverflow.com/questions/20519431/finding-point-of-intersection-in-r
+## another Ref; https://stackoverflow.com/questions/31574382/intersection-between-density-plots-of-multiple-groups
 intersectX. <- function(df1, df2, ...) {
     if (is.null(ncol(df1)) || is.null(ncol(df2))) {    #  for vector
         df1 <- data.frame(x = seq_along(df1), y = df1)
@@ -784,20 +826,25 @@ dens. <- function(d, bw = 1, natural = F, lty = NA, lwd = NA, xlab = '', ylab = 
 }  # dens.(iris[4:5], cum = T)  # [ID, y] is OK
 
 
-## Cumulative ratio plot == (2020-10-04) ================================================
+## Cumulative ratio plot == (2020-10-29) ================================================
 crp. <- function(d, lty = NA, lwd = NA, xlab = '', ylab = '', col = NULL, Xlims = NA, Ylims = c(-0.01, 1.05), legePos = c(0.05, 0.98),
                  name = NULL, mar = par('mar'), px = NULL, py = NULL, ...) {
     if (!exists('pLL_nu_lam')) {
-        suppressMessages('devtools'::source_url('https://github.com/Nyu3/psd_R/blob/master/PSD_archive.R?raw=TRUE', keep.source = T, chdir = F))
+suppressMessages('devtools'::source_url('https://github.com/Nyu3/psd_R/blob/master/PSD_archive.R?raw=TRUE'))
     }
     quant <- function(vec) {
         vec <- {if (!is.atomic(vec)) vec[[1]] else vec} %>% .[!is.na(.)] %>% sort(.) %>% unique(.)
         dt <- tibble(x = vec, y = cumsum(vec) /sum(vec))
 
-        pLL <- pLL_lam_al_be_ga_de  # Exponentiated generalized extended Gompertz # Generalized Gompertz
-        f <- function(x,lam,al,be,ga,de) (1 -(1 -(1 -exp(-lam *de *(exp(x /lam) -1))) ^al) ^be) ^ga  # (1 -exp(al *lam *(1 -exp(x /lam)))) ^be
-        mdl <- lazy_call.(x = dt, y = NULL, pLL, f, ext = T, y2 = 1)
-        return(tesL = list(dt, mdl$xy, mdl$mdl))
+        pLL <- pLL_lam_al_be_ga_de
+        ## Beta Marshall-Olkin Weibull (betaMaolWei)
+        z <- function(x,lam,de) 1 -exp(-(x /lam) ^de)
+        h <- function(x,lam,be,de) z(x,lam,de) /(be +(1 -be) *z(x,lam,de))
+        Fx <- function(x,lam,al,be,ga,de) incbeta(h(x,lam,be,de), al, ga)  # Fx <- ... cannot work
+        ## Exponentiated generalized extended Gompertz
+      # Fx <- function(x,lam,al,be,ga,de) (1 -(1 -(1 -exp(-lam *de *(exp(x /lam) -1))) ^al) ^be) ^ga
+        mdl <- lazy_call.(x = dt, y = NULL, pLL, f = Fx, ext = T, y1 = 0, y2 = 1)
+        return (tesL = list(dt, mdl$xy, mdl$mdl))
     }
     dL123 <- dLformer.(d) %>% {if (is.atomic(.[[1]])) map(., ~ quant(.)) else stop('Only available for [ID,y] or [y1,y2, ...]', call. = F)}
     dL_raw <- dL123 %>% map(~ .[[1]])
@@ -805,8 +852,8 @@ crp. <- function(d, lty = NA, lwd = NA, xlab = '', ylab = '', col = NULL, Xlims 
     dL_res <- dL123 %>% map(~ .[[3]])
     for (i in seq_along(dL_res)) {
         cat('< N =', i, '>\n')
-        cat('Model := Exponentiated generalized extended Gompertz;\n')
-        cat('y = (1 -exp(al *lam *(1 -exp(x /lam)))) ^be\n')
+        cat('Model := Beta Marshall-Olkin Weibull;\n')  # Exponentiated generalized extended Gompertz
+        cat('y = \n')  # (1 -exp(al *lam *(1 -exp(x /lam)))) ^be
         dL_res[[i]] %>% print(.)
         cat(str_c(str_dup('=', 48), '\n'))
     }
@@ -823,7 +870,7 @@ crp. <- function(d, lty = NA, lwd = NA, xlab = '', ylab = '', col = NULL, Xlims 
         cat('\n    When py =', py, ',\n')
         print(out)
     }
-}  # crp.(iris[1:2])
+}  # crp.(iris[2:3])
 
 
 ## Histograms plot == (2020-10-02) ================================================
@@ -842,8 +889,8 @@ hist. <- function(d, naturalOrder = F, binW = 'st', freq = T, xlab = '', ylab = 
             return (seq(floor(min(vec, na.rm = T)), ceiling(max(vec, na.rm = T)), by = binW))
         }
     }
-    dL <- dLformer.(d, naturalOrder) %>% map(~ .[!is.na(.)])  # list of vectors, not xy.
-    ## NOTE: Screening the range you wanna observe        
+    dL <- dLformer.(d, naturalOrder) %>% map(~ .[!is.na(.)]) # list of vectors, not xy.
+    ## NOTE: Screening the range you wanna observe
     if (length(Xlims) > 1 && anyNA(Xlims)) {  # When Xlims = c(0, NA)
         dL <- map(dL, ~ . %>% {if (is.na(Xlims [1])) .[. <= Xlims[2]] else .[. >= Xlims[1]]})
     } else if (length(Xlims) > 1 && !anyNA(Xlims)) {  # When Xlims = c(0, 100)
@@ -923,7 +970,7 @@ corp. <- function(d, xlab = '', ylab = '', col = 5, legePos = NULL, li = F, el =
     mdl <- list(mdl0, mdl1)[[mdlNum]]  # Choose better
     Coef <- list(c(0, coef(mdl0)), coef(mdl1))[[mdlNum]] %>% set_names(NULL)
     ## Cor <- 'robust'::covRob(dt, corr = T)$'cov'[1, 2]  # No robust, including outliers; cor.test(x, y, method = 'pearson')$'estimate'
-    ## Cnt <- 'robust'::covRob(dt, corr = T)$'center'  # If Coef[2] ~ +/-0.01 and shows strong Cor, don't care because it's 1to1 relationship
+    ## Cnt <- 'robust'::covRob(dt, corr = T)$'center'  # If Coef[2] ~ ±0.01 and shows strong Cor, don't care because it's 1to1 relationship
     ## Cor <- if (nrow(dt) > 13) 'robustbase'::covMcd(dt, cor = T)$'cor'[1, 2] else cor(dt)[1, 2]  # covMcd results are different for small data
     Cor <- cor.test(dt[[1]], dt[[2]], method = 'spearman', exact = F)$estimate
     Cnt <- 'robustbase'::covMcd(dt, cor = T)$'center'  # c(mean.(x), Coef[1] +Coef[2] *mean.(x))
@@ -1007,7 +1054,7 @@ corp. <- function(d, xlab = '', ylab = '', col = 5, legePos = NULL, li = F, el =
 }  # corp.(iris[3:4])
 
 
-## Boxplot oriented for quantile limit and full/half box == (2020-10-04) ================================================
+## Boxplot oriented for quantile limit and full/half box == (2020-11-11) ================================================
 boxplot2. <- function(dL, type, jit, val, wid, Ylims, col, name, xlab, ylab, mar, rot, cex, cut, ...) {
     if (cut == TRUE) {
         for (i in seq_along(dL)) {
@@ -1021,7 +1068,7 @@ boxplot2. <- function(dL, type, jit, val, wid, Ylims, col, name, xlab, ylab, mar
     if (type == 'full' || type == 'f') def.(c('AT', 'jitW', 'leftW', 'rightW'), list(0, wid *0.6, wid, wid))
     if (type != 'full' && type != 'f') def.(c('AT', 'jitW', 'leftW', 'rightW'), list(wid /2, wid /2, wid, 0))
     xPos <- 2 *seq(length(dL)) -1  # NA is already omitted
-    CX <- length.(dL) %>% max.(.) %>% whichSize. (ref = ., vec = c(100, 13, 4), c(0.3, 0.7, 0.8))
+    CX <- length.(dL) %>% max() %>% whichSize.(ref = ., vec = c(100, 13, 4), c(0.3, 0.7, 0.8))
     ## fivenum() is agreed with quantile() if vec is odd, but if even, fivenum() is a bit wider than quantile()
     ## Moreover, some cases make wrong whiskers that have no points more or less than 95th or 5th by quantile()
     c1 <- map.(dL, function(x) {fivenum(x)[2] -1.5 *IQR(x, na.rm = T)} %>% c(., min.(x)) %>% max.(.))
@@ -1100,7 +1147,7 @@ boxplot2. <- function(dL, type, jit, val, wid, Ylims, col, name, xlab, ylab, mar
         mtext(name, at = xPos, side = 1, las = 1, cex = labAdj(name)$'cex', family = jL.(name), line = labAdj(name)$'line')
     } else {
         yPos <- par('usr')[3] -0.035 *delta.(par('usr')[3:4]) *whichSize.(ref = length(dL), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.9))
-        nameLen <- 'stringi'::stri_numbytes(name) %>% max.(.)  # Count including multi bytes char and space
+        nameLen <- 'stringi'::stri_numbytes(name) %>% max.(.) # Count including multi bytes char and space
         rot_cex <- whichSize.(ref = nameLen, vec = c(5, 10, 15), c(0.8, 0.7, 0.6)) %>%
                    {. *whichSize.(ref = length(dL), vec = c(8, 15, 35, 60, 100), c(0.9, 0.8, 0.7, 0.6, 0.4))}
         text(xPos, yPos, name, srt = rot,  xpd = T, adj = c(1, 1), cex = cex %||% rot_cex, family = jL.(name))
@@ -1112,25 +1159,49 @@ boxplot2. <- function(dL, type, jit, val, wid, Ylims, col, name, xlab, ylab, mar
     gp.()
 }
 
-box2. <- function(d, type = 'half', jit = T, val = T, natural = F, wid = 0.75, Ylims = NA, col = 0, name = NULL, xlab = '', ylab = '',
-                  mar = par('mar'), rot = 0, cex = NULL, cut = F, sel = NULL, med_order = F, name_marking = NULL, col_marking = NULL,
+box2. <- function(d, type = 'half', jit = T, val = T, natural = F, wid = 0.65, Ylims = NA, col = 0, name = NULL, xlab = '', ylab = '',
+                  mar = par('mar'), rot = 0, cex = NULL, cut = F, sel = NULL, pareto = F, name_marking = NULL, col_marking = NULL,
                   PDF = T, ...) {
-    dL <- dLformer.(d, natural)  # you can control an order something like  'OK' 'NG'  by sel = ~
-    if (!is.null(sel)) dL <- n_cyc.(sel) %>% dL[.]  # try  as.list(iris)[0: 100] %>% dLformer.(.)
-    if (med_order == T) dL <- median.(dL) %>% order(., decreasing = T) %>% dL[.]  # Show the graph like Pareto chart
-    col <- colors.(col, d = dL)
-    if (!is.null(name_marking)) {  # name_marking = list(c('Log-Normal', 'Nukiyama-Tanasawa', 'Three-parameter Log-Hyperbolic', 'Weibull'))
-        for (i in seq_along(col_marking)) col[which(names(dL) %in% name_marking[[i]])] <- col_marking[[i]]  # col_marking = list('grey88')
+    ## Data forming
+    numTF <- map_lgl(d, is.numeric) %>% sum()
+    if (numTF == 0) stop('The data does NOT include any numeric data...\n\n', call. = F)
+
+    if (is.data.frame(d) && numTF != ncol(d)) {  # [ID, y1, y2, ...] --> [[ID, y1]], [[ID, y2]], ...
+        chr_colname <- map_lgl(d, ~ !is.numeric(.)) %>% which() %>% names() %>% chooseOne.(., 'Label column', chr = T)
+        d <- {map_lgl(d, is.numeric) | names(d) %in% chr_colname} %>% d[.]  # Delete possible ID.2
+        col <- colors.(col, d = d[chr_colname] %>% n_distinct() %>% seq())
+        dL <- xyL2.(d, fix = which(names(d) %in% chr_colname))
+        dLL <- map(dL, ~ dLformer.(.))  # Confusing: [[ID, y1]] --> [[y_ID.a]], [[y_ID.b]], ...
+        ## selection
+        if (!is.null(sel)) dLL <- map(dLL, ~ .[sel])
+        ## sort in size to show the graph like Pareto chart
+        if (pareto == T) dLL <- map(dLL, function(x) median.(x) %>% order(., decreasing = T) %>% x[.])
+        ## color marking
+        if (!is.null(name_marking)) {  # name_marking = list(c('Log-Normal', 'Weibull')) # col_marking = list('grey88')
+            for (i in seq_along(col_marking)) col[which(names(dLL[[1]]) %in% name_marking[[i]])] <- col_marking[[i]]
+        }
+    } else {  # [y1, y2, ..] --> [[y1]], [[y2]], ...
+        col <- colors.(col, d = ncol(d) %>% seq())
+        dL <- dLformer.(d, natural)  # you can control an order something like  'OK' 'NG'  by sel = ~
+        ## selection
+        if (!is.null(sel)) dL <- map(dL, ~ .[sel])
+        ## sort in size to show the graph like Pareto chart
+        if (pareto == T) dL <- median.(dL) %>% order(., decreasing = T) %>% dL[.]
+        ## color marking
+        if (!is.null(name_marking)) {
+            for (i in seq_along(col_marking)) col[which(names(dL) %in% name_marking[[i]])] <- col_marking[[i]]
+        }
     }
+
     ## Signle or multiple boxplot
-    if (!'list' %in% class(dL[[1]])) {  # type: [ID, y] or [y1, y2, y3, ...]
-        if (map_lgl(dL, ~ is.numeric(.)) %>% any(.) %>% `!`) stop('The data does NOT any numeric data...\n\n', call. = F)
+    if (is.data.frame(dL[[1]])) {  # [[ID, y1]], [[ID, y2]], ...
+        walk2(dLL, names(dLL), ~ boxplot2.(.x, type, jit, val, wid, Ylims, col, name, xlab, ylab = .y, mar, rot, cex, cut))
+    } else {  # [y1], [y2], ...
         boxplot2.(dL, type, jit, val, wid, Ylims, col, name, xlab, ylab, mar, rot, cex, cut)
-    } else {  # type: [ID, y1, y2, y3, ...]
-        for (i in seq_along(dL)) boxplot2.(dL[[i]], type, jit, val, wid, Ylims, col, name, xlab, ylab = names(dL[i]), mar, rot, cut)
     }
+
     if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
-}  # box2.(iris[-5], col = 1:4, rot = 22, cut = T)  box2.(iris)
+}  # box2.(iris)  box2.(iris[-5], col = 1:4, rot = 22, cut = T, pareto = T)
 
 
 ## Bar plot == (2020-10-04) ================================================
@@ -1243,7 +1314,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
         legend2.(rownames(mat_avg), legePos = leges, cex = 0.65, col = col2)
     }
 
-}  # barp.(iris)  barp.(iris,cum=T)  barp.(iris,xyChange=T,rot=25)  barp.(iris,cum=T,xyChange=T)  barp.(iris, elementChange=T,cex=.9)
+}  # barp.(iris)  barp.(iris,cum=T)  barp.(iris,xyChange=T,rot=25) barp.(iris,cum=T,xyChange=T)  barp.(iris, elementChange=T,cex=.9)
    # barp.(iris[-5],spacer=-0.1)
 
 
@@ -1334,8 +1405,8 @@ mat2. <- function(dt, Xlims = NA, Ylims = NA, xlab = '', ylab = '', ...) {  # ma
 }  # mat2.(iris[-5])
 
 
-## Inf & NaN -> zero == (2020-06-21) ========================
-clean0. <- function(y, ...) y %>% {case_when(. == Inf ~ 0, . == -Inf ~ 0, is.na(.) ~ 0, TRUE ~ .)}
+## Inf & NaN -> zero == (2020-10-31) ========================
+clean0. <- function(y, ...) y %>% {case_when(. %in% c(NA, NaN, -Inf, Inf) ~ 0, TRUE ~ .)}  # clean0.(c(1:3, NA, NaN, Inf, -Inf))
 clean1. <- function(dt, ...) {
     dt <- dt %>% rowid_to_column('iD')
     clean_row <- dt %>% select_if(~ is.numeric(.)) %>% filter(rowSums(is.na(.)) == 0, rowSums(.) > -Inf, rowSums(.) < Inf) %>% .[['iD']]
@@ -1371,7 +1442,7 @@ median. <- function(x){
     if (is.atomic(x)) {
         median0.(x)
     } else if (is.list(x)) {
-        list2tibble.(x) %>% select_if(~ is.numeric(.) | is_time.(.)) %>% map_df(median0.) 
+        list2tibble.(x) %>% select_if(~ is.numeric(.) | is_time.(.)) %>% map_df(median0.)
     } else {
         NA
     }
@@ -1380,7 +1451,7 @@ mean0. <- function(x, trim = 0) {
     out <- {if (is.atomic(x) && is.numeric(x) || is_time.(x)) mean(x, na.rm = T, trim) %>% ymd.(.) else NA} %>% ifelse(is.nan(.), NA, .)
     return (out)
 }
-mean. <- function(x, trim = 0) {  # mean0.(rep(NA, 3))  mean0.(rep(NA_real_, 3))
+mean. <- function(x, trim = 0) {  # mean0.(rep(NA, 3)) mean0.(rep(NA_real_, 3))
     if (is.atomic (x)) {
         mean0.(x, trim)
     } else if (is.list(x)) {
@@ -1610,7 +1681,7 @@ deviance. <- function(model) if (is.null(model) || is.na(model)) NA else model %
 
 ## Return with no error-stop risk? == (2019-01-25) ================================================
 tryReturn. <- function(modeling) suppressWarnings(try(modeling, silent = T) %>% {if (class(.) == 'try-error') NA else .})
-# tryReturn.(nlsLM(y ~ x, start = ... ))  tryReturn.(date('123456-1-2'))
+# tryReturn.(nlsLM(y ~ x, start = ... )) tryReturn.(date('123456-1-2'))
 
 
 ## Find the interval points on both sides of local plus/minus change in vector == (2019-05-23) ========================
@@ -1649,7 +1720,7 @@ seqCtr. <- function(hit, Seq = 1, ...) {  # 'hit' is the target number out of th
     grpList <- {lapply(grpList, length) >= Seq} %>% grpList[.]  # Cropping larger than 'Seq'
     if (length(grpList) == 0) grpList <- NA  # In case that grpList = list () because of too large magicSeq or none of sequance.
     return (grpList)
-}  # which(hit > 15) %>% seqCtr.(., Seq = 5)  :=  trueList.(hit > 15) %>% {.[map.(., ~ length(.) > 5)]}
+}  # which(hit > 15) %>% seqCtr.(., Seq = 5)  := trueList.(hit > 15) %>% {.[map.(., ~ length(.) > 5)]}
 
 
 ## Pick up only true vector and return their list == (2020-02-07) ========================
@@ -1728,7 +1799,7 @@ cpDetecter. <- function(vec, Lper = 0.05, entryRate = 0.25, gapRate = 0.60, ...)
     vec0 <- vec  # vec0 (original) --> vec (no NA) --> vec1 (mean bars in the whole span)
     if (anyNA(vec)) vec <- vec0[!is.na(vec0)]
     if (length(vec) < 10) {cat(paste('\n    CAUTION !!  Element length of the object is too short,', length(vec), '\n')); return (NULL)}
-    skipMess.(suppressPackageStartupMessages(library('changepoint')))
+skipMess.(suppressPackageStartupMessages(library('changepoint')))
     penValues <- c(5, 1000)  # Very significant
     Minseg <- ifelse(length(vec) < 100, 5, ceiling(length(vec) *Lper))  #Any time it's larger than 5. Try Lper (length %).
     invisible(capture.output(  # cpt.meanvar() produces a model but also crap output: Needed invisible (cap ~)
@@ -1831,3 +1902,4 @@ nya0 <- 'tibble'::tibble(t1=c(3,5,-3,-5), t2=c(1.2,3.4,5.6,7.8), t3=c('Cats','ca
 assign('iris', 'tibble'::as_tibble('datasets'::iris), envir = .GlobalEnv)
 
 ## END ##
+
