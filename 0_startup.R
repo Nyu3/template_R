@@ -30,7 +30,7 @@ setwd. <- function(...) {  # Needed to copy a file path on the console in advanc
 }  # setwd.()
 
 
-## Lightly vroom() for csv == (2020-10-19) ========================
+## Lightly vroom() for csv == (2020-11-19) ========================
 vroom. <- function(file = NULL, col_names = T, skip = 0, n_max = Inf, ...) {
     if (Sys.getenv('OS') != '' && str_detect(file, pattern = '\\p{Hiragana}|\\p{Katakana}|\\p{Han}')) {
         out <- skipMess.(read_csv(file, locale = locale(encoding = 'cp932'), col_names = col_names, skip = skip, n_max = n_max))
@@ -38,13 +38,15 @@ vroom. <- function(file = NULL, col_names = T, skip = 0, n_max = Inf, ...) {
         File <<- file %||% {  # You can use the file name later in case of using write.()
             dir(pattern = 'csv|CSV') %>% {.[!str_detect(., '\\$')]} %>% chooseOne.(., '\"Target File\"')
         }
-        out <- skipMess.('vroom'::vroom(File, locale = locale(encoding = 'cp932'), col_names = col_names, skip = skip, n_max = n_max))
+        out <- map_dfr(File,
+                     ~ skipMess.('vroom'::vroom(., locale = locale(encoding = 'cp932'), col_names = col_names, skip = skip, n_max = n_max))
+        )
     }
     return(out)
 }
 
 
-## Reading data == (2020-10-30) ================================================
+## Reading data == (2020-11-19) ================================================
 getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, type = NULL, sheet_bind = T, ...) {
     if (!is.null(path)) {
         oldDir <- getwd()
@@ -60,7 +62,7 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
     }
     if (length(File) == 0) stop('No data file in this directory...\n\n', call. = F)
 
-    if (str_detect(File, pattern = 'csv|CSV')) {
+    if (str_detect(File, pattern = 'csv|CSV') %>% all()) {
         d <- vroom.(File)
     } else if (str_detect(File, pattern = 'xls|xlsx')) {
         seqs <- excel_sheets(File)  # To mutate(sheet = ~), map_dfr() is not used
@@ -188,12 +190,12 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) { # Use this by ge
 }  # dt2time.(nya0)
 
 
-## Powerful copy & paste == (2020-10-04) ================================================
+## Powerful copy & paste == (2020-11-26) ================================================
 pp. <- function(...) {
     type_taste <- function(d) d %>% retype() %>% map_df(~ type_sum(.))
     type_watch <- function(d) {
-        tenta <- pmin(nrow(d), 20) %>% {d[seq(.), ]}  # Using less than 20 rows to minimize the burden of processing of reading
-        tenta_type <- map_dfr(1:nrow(tenta), function(i) type_taste(tenta[i, ]))
+        tenta <- pmin(nrow(d), 40) %>% {d[seq(.), ]} %>% 'tidyr'::fill(names(d), .direction = 'updown')  # Using half 20 rows to check
+        tenta_type <- map_dfr(1:floor(nrow(tenta) /2), function(i) tenta[i:nrow(tenta), ] %>% retype() %>% map_df(type_sum))
         body_type <- tenta_type %>% group_by_all() %>% count() %>% select(!n)
 
         if (nrow(body_type) == 1) {  # No column names
@@ -238,7 +240,8 @@ pp. <- function(...) {
             if (is.atomic(.)) {
                 .
             } else {
-                mutate_if(., ~ is.character(.), ~ correctChr.(.)) %>% select_if(colSums(is.na(.)) != nrow(.)) # | !str_detect(names(.), 'X'))
+                {set_names(., names(.) %>% gsub('NA', 'X', .) %>% make.unique(., sep = '_'))} %>%
+                mutate_if(., ~ is.character(.), ~ correctChr.(.)) %>% select_if(colSums(is.na(.)) != nrow(.))
             }
         }
     } else {  # Just copying 1 row;  return a vector
@@ -468,7 +471,7 @@ neatChr. <- function(chr, ...) {  # c('nya :: A', 'nya :: B') --> c('A', 'B')
 }
 
 
-## Interactive filter == (2020-10-12) ================================================
+## Interactive filter == (2020-11-19) ================================================
 chooseOne. <- function(factors, messText = NULL, freqs = NULL, chr = T, ...) {
     ## freqs denotes each N of the factors, chr = T returns text (F returns number)
     factors <- unlist(factors)  # In case of X x 1 tibble
@@ -481,18 +484,19 @@ chooseOne. <- function(factors, messText = NULL, freqs = NULL, chr = T, ...) {
     } else {
         freqN <- NULL
     }
-    for (i in seq_along(tenta)) tenta[i] <- str_c('     [', i, ']', ifelse(i < 10, '   ', '  '), factors[i], freqN[i], '\n')
-    cat(str_c('\n      Choose one from below;\n\n'), tenta)
+    for (i in seq_along(tenta)) tenta[i] <- str_c('   [', i, ']', ifelse(i < 10, '  ', ' '), factors[i], freqN[i], '\n')
+    cat(str_c('\n    Choose one from below;\n\n'), tenta)
     repeat {
-        num <- readline(str_c('\n      Which No.', ifelse(is.null(messText), '', 'as '), messText, ' ?  \n\n >>> '))
-        if (correctChr.(num) %>% {skipMess.(as.numeric(.))} %>% {!is.na(.)} ) {
-            num <- correctChr.(num) %>% as.numeric(.)  # To gurantee your input as numeric
-            if (num >= 1 && num <= length(factors)) break  # This if () restricts proper range and prohibit minus or oversized.
-        }
+        num <- readline(
+            str_c('\n    Which No.', ifelse(is.null(messText), '', 'as '), messText, ' ?\n', '    Multi-No is OK like 1,2,3 or 4.5.6\n\n>>> ')
+        )
+        num <- gsub(',|\\.|\\*|/|:|;| |  ', '_', num) %>% str_split('_') %>% unlist() %>% {.[!. %in% '']} %>%
+               correctChr.() %>% as.numeric() %>% sort() %>% unique() %>% .[!is.na(.)]  # To gurantee your input as numeric
+        if ((num >= 1 & num <= length(factors)) %>% all()) break  # This if () restricts proper range and prohibit minus or oversized.
     }
     cat(str_c(str_dup('=', times = 38), '\n'))
-    return (ifelse(chr, factors[num], num))  # text or its number
-}
+    return (if (chr == TRUE) factors[num] else num)  # text or its number
+}  # chooseOne.(LETTERS[1:5])
 
 
 ## Plot range for plot.window() & axisFun.() == (2020-01-21) ================================================
@@ -600,10 +604,10 @@ haloText. <- function(x, y, labels, cex, col = 'grey13', bg = 'white', theta = s
 }
 
 
-## Optimum position of y-axis label == (2020-10-21) ================================================
+## Optimum position of y-axis label == (2020-11-24) ================================================
 yPos. <- function(Ylim2, ...) {
     axisFun.(Ylim2, n = 6)[[1]] %>% {.[between(., Ylim2[1], Ylim2[2])]} %>% {strwidth(.) /strwidth('|||')} %>% #{max(ceiling(.))}
-    max(.) %>% whichSize.(vec = c(1, 2, 2.2, 3, 3.3, 4), ref = ., c(2.1, 1.9, 1.7, 1.4, 1.1, 0.9))  # same adjust; -0.1, 0.1, 100
+    max(.) %>% whichSize.(vec = c(1, 2, 2.2, 3, 3.3, 4), ref = ., c(2.1, 1.9, 1.6, 1.4, 1.1, 0.9))  # same adjust; -0.1, 0.1, 100
 }
 
 
@@ -724,9 +728,9 @@ intersectX. <- function(df1, df2, ...) {
 }  # plt.(list(df1, df2); abline(v = intersectX.(df1, df2))
 
 
-## Quick plot == (2020-10-04) ================================================
+## Quick plot == (2020-11-27) ================================================
 plt. <- function(d, natural = F, lty = NA, lwd = NA, xlab = '', ylab = '', col = NULL, Xlims = NA, Ylims = NA,
-                 legePos = NA, name = NULL, PDF = T, add = 1, mar = par('mar'), tcl = par('tcl'), type = 0, ...) {
+                 legePos = NA, name = NULL, PDF = T, add = 1, mar = par('mar'), tcl = par('tcl'), type = 0, grid = F, ...) {
     ## You must prepare a data of list(tibble(x = ~, y = ~)) to draw x-y graph; otherwise n-x & n-y graph are separately drawn
     if ('list' %in% class(d)) {  # [[x1, y1], [x2, y2], ...]
         if (map_lgl(d, ~ ncol(.) == 2) && map.(d, map_lgl, is.numeric)) {
@@ -754,9 +758,10 @@ plt. <- function(d, natural = F, lty = NA, lwd = NA, xlab = '', ylab = '', col =
         par(mar = mar, tcl = tcl)
         plot.new()  # ex) plt.(d, add = 1); polygon (~); plt.(d, add = 2)
         plot.window(xlim = Xlim2, ylim = Ylim2)
+        if (grid == TRUE) abline(v = sort(unlist(axisFun.(Xlim2, n=6))), h = sort(unlist(axisFun.(Ylim2, n=5))), col = 'grey98')
         for (i in 1:2) for (j in 1:2) {
-            axis(side = 2*j-1, at = axisFun.(Xlim2, n = 6)[[i]], labels = (i*j==1), tcl = par('tcl')/i, cex.axis = 1, lend = 'butt', padj = -0.1)
-            axis(side = 2*j, at = axisFun.(Ylim2, n = 5)[[i]], labels = (i*j == 1), tcl = par('tcl')/i, cex.axis = 1, lend = 'butt')
+            axis(side = 2*j-1, at = axisFun.(Xlim2, n=6)[[i]], labels = (i*j==1), tcl = par('tcl')/i, cex.axis = 1, lend = 'butt', padj = -0.1)
+            axis(side = 2*j, at = axisFun.(Ylim2, n=5)[[i]], labels = (i*j==1), tcl = par('tcl')/i, cex.axis = 1, lend = 'butt')
         }
         box()
         mtext(xlab, side = 1, las = 1, cex = 1, family = jL.(xlab), line = par('mar')[1] -1.00)
@@ -1786,7 +1791,7 @@ fad. <- function(vec, shaper = 3, ...) {  # Strongly recommended shaper = 3 (onl
 # par(new = T); plot(fad0.(vec), type = 'l', lwd = 0.8, col = 'blue', axes = F)
 
 
-## Change points detection == (2019-12-13) ================================================
+## Change points detection == (2020-11-24) ================================================
 cpDetecter. <- function(vec, Lper = 0.05, entryRate = 0.25, gapRate = 0.60, ...) {
 ## https://qiita.com/hoxo_m/items/1afa288178422fad9076
 ## https://speakerdeck.com/hoxom/bi-nu-nizhen-rarenaitamefalsebian-hua-jian-zhi-ru-men
@@ -1796,6 +1801,7 @@ cpDetecter. <- function(vec, Lper = 0.05, entryRate = 0.25, gapRate = 0.60, ...)
 ## The original cpt program can detect even tiny change but industrial trend requires a big change so that any can recognize it as cpt.
 ## NOTE: changepoint package doesn't follow NA action.
 ## NOTE: 'minseglen' := minmum of cut segment length: Kill neighbors in the same large deviation
+    if (is.data.frame(vec) && ncol(vec) == 1) vec <- unlist(vec)
     vec0 <- vec  # vec0 (original) --> vec (no NA) --> vec1 (mean bars in the whole span)
     if (anyNA(vec)) vec <- vec0[!is.na(vec0)]
     if (length(vec) < 10) {cat(paste('\n    CAUTION !!  Element length of the object is too short,', length(vec), '\n')); return (NULL)}
