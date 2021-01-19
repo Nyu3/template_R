@@ -1,4 +1,3 @@
-
 ## ?(ÅL?`)? (ÅL-`) .°oO (Common function, 2018-12-03)
 
 
@@ -846,7 +845,7 @@ dens. <- function(d, bw = 1, natural = F, lty = NA, lwd = NA, xlab = '', ylab = 
 }  # dens.(iris[4:5], cum = T)  # [ID, y] is OK
 
 
-## Cumulative ratio plot == (2020-10-29) ================================================
+## Cumulative ratio plot == (2021-01-20) ================================================
 crp. <- function(d, lty = NA, lwd = NA, xlab = '', ylab = '', col = NULL, Xlims = NA, Ylims = c(-0.01, 1.05), legePos = c(0.05, 0.98),
                  name = NULL, mar = par('mar'), px = NULL, py = NULL, ...) {
     if (!exists('pLL_nu_lam')) {
@@ -860,11 +859,11 @@ suppressMessages('devtools'::source_url('https://github.com/Nyu3/psd_R/blob/mast
         ## Beta Marshall-Olkin Weibull (betaMaolWei)
         z <- function(x,lam,de) 1 -exp(-(x /lam) ^de)
         h <- function(x,lam,be,de) z(x,lam,de) /(be +(1 -be) *z(x,lam,de))
-        Fx <- function(x,lam,al,be,ga,de) incbeta(h(x,lam,be,de), al, ga)  # Fx <- ... cannot work
+        f <- function(x,lam,al,be,ga,de) incbeta(h(x,lam,be,de), al, ga)  # Fx <- ... cannot work
         ## Exponentiated generalized extended Gompertz
-      # Fx <- function(x,lam,al,be,ga,de) (1 -(1 -(1 -exp(-lam *de *(exp(x /lam) -1))) ^al) ^be) ^ga
-        mdl <- lazy_call.(x = dt, y = NULL, pLL, f = Fx, ext = T, y1 = 0, y2 = 1)
-        return (tesL = list(dt, mdl$xy, mdl$mdl))
+      # f <- function(x,lam,al,be,ga,de) (1 -(1 -(1 -exp(-lam *de *(exp(x /lam) -1))) ^al) ^be) ^ga
+        mdl <- lazy_call.(x = dt, y = NULL, pLL, f, ext = T, y1 = 0, y2 = 1)
+        return (tesL = list(dt, mdl$xy, mdl$model))
     }
     dL123 <- dLformer.(d) %>% {if (is.atomic(.[[1]])) map(., ~ quant(.)) else stop('Only available for [ID,y] or [y1,y2, ...]', call. = F)}
     dL_raw <- dL123 %>% map(~ .[[1]])
@@ -1943,4 +1942,3 @@ nya0 <- 'tibble'::tibble(t1=c(3,5,-3,-5), t2=c(1.2,3.4,5.6,7.8), t3=c('Cats','ca
 assign('iris', 'tibble'::as_tibble('datasets'::iris), envir = .GlobalEnv)
 
 ## END ##
-
