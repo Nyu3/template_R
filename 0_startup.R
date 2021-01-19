@@ -1,15 +1,18 @@
+
 ## ?(ÅL?`)? (ÅL-`) .°oO (Common function, 2018-12-03)
 
 
-## General parameters == (2020-09-28) ========================
+## General parameters == (2020-12-10) ========================
 gp. <- function(...) {
   # skipMess.('easypackages'::libraries(c('hablar', 'lubridate', 'readxl', 'tidyverse'))))
   # if (dev.list() > 0) dev.new(width = 3 * (1+ sqrt(5))/2, height = 3)  # 4.5, 3.3
   # quartz.options(width = 5.682819, height = 3.004405); dev.new(); par(mar = c(2.4, 3.3, 1.1, 2.8), tcl = 0.35)
   # windows(width = 4.5, height = 3.3)  # for Windows
-  # Ubuntu Avenir Open Sans Light
-    par(mgp = c(0, 0.2, 0), ann = F, xaxs = 'i', yaxs = 'i', col = 'grey13', col.axis = 'grey13', fg = 'grey13', ps = 13, lwd = 1.3)
-    par(mar = c(2.4, 4, 0.5, 1), tcl = 0.25, cex.axis = 1, las = 1, family = ifelse(Sys.getenv('OS') == '', 'Avenir Next', 'sans'))
+  # Ubuntu  Avenir  Open Sans Light  Noto Sans CJK JP
+    par(mgp = c(0, 0.2, 0), ann = F, xaxs = 'i', yaxs = 'i', col = 'grey13', col.axis = 'grey13', fg = 'grey13', ps = 13, lwd = 1.3,
+        mar = c(2.4, 4, 0.5, 1), tcl = 0.25, cex.axis = 1, las = 1,
+        family = which(c('Darwin', 'Linux', 'Windows') %in% Sys.info()['sysname']) %>% c('Avenir Next', 'sans', 'Yu Gothic')[.]
+    )
     formals(axis)[c('col.ticks', 'lwd.ticks', 'lwd')] <- list('grey13', 1.3, 0)
 }
 
@@ -21,7 +24,7 @@ skipMess. <- function(x) suppressPackageStartupMessages(suppressWarnings(suppres
 ## Path control == (2019-11-04) ================================================
 setwd. <- function(...) {  # Needed to copy a file path on the console in advance
     chr <- pp.()
-    if (Sys.getenv('OS') == '') {
+    if (Sys.getenv('OS') == '') {  # for Mac & Ubuntu
         chr %>% {if (str_detect(., pattern = 'csv$|xls$|xlsx$')) dirname(.) else .} %>% setwd(.)
     } else {
         if (!str_detect(chr, pattern = '\\\\')) stop('Not available file path...\n\n', call. = F)
@@ -30,23 +33,31 @@ setwd. <- function(...) {  # Needed to copy a file path on the console in advanc
 }  # setwd.()
 
 
-## Lightly vroom() for csv == (2020-11-19) ========================
+## Lightly vroom() for csv == (2020-12-23) ========================
 vroom. <- function(file = NULL, col_names = T, skip = 0, n_max = Inf, ...) {
     if (Sys.getenv('OS') != '' && str_detect(file, pattern = '\\p{Hiragana}|\\p{Katakana}|\\p{Han}')) {
-        out <- skipMess.(read_csv(file, locale = locale(encoding = 'cp932'), col_names = col_names, skip = skip, n_max = n_max))
-    } else {  # for Mac
+        for (enc in c('cp932', 'utf8')) {
+            out <- try(skipMess.(
+                       read_csv(file, locale = locale(encoding = 'cp932'), col_names = col_names, skip = skip, n_max = n_max)
+            ), silent = T)
+            if (!'try-error' %in% class(out)) break
+        }
+    } else {  # for Mac & Ubuntu
         File <<- file %||% {  # You can use the file name later in case of using write.()
             dir(pattern = 'csv|CSV') %>% {.[!str_detect(., '\\$')]} %>% chooseOne.(., '\"Target File\"')
         }
-        out <- map_dfr(File,
-                     ~ skipMess.('vroom'::vroom(., locale = locale(encoding = 'cp932'), col_names = col_names, skip = skip, n_max = n_max))
-        )
+        for (enc in c('cp932', 'utf8')) {
+            out <- try(map_dfr(File,
+                     ~ skipMess.('vroom'::vroom(., locale = locale(encoding = enc), col_names = col_names, skip = skip, n_max = n_max))
+            ), silent = T)
+            if (!'try-error' %in% class(out)) break
+        }
     }
     return(out)
 }
 
 
-## Reading data == (2020-11-19) ================================================
+## Reading data == (2020-12-10) ================================================
 getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, type = NULL, sheet_bind = T, ...) {
     if (!is.null(path)) {
         oldDir <- getwd()
@@ -78,7 +89,7 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
     ## cleaning
     clean_data <- function(x) {
         out <- x %>% 'dplyr'::filter(rowSums(is.na(.)) != ncol(.)) %>%
-               retype() %>%
+               'hablar'::retype() %>%
                dt2time.(., timeSort, timeFactor) %>%
                mutate_if(., ~ is.character(.), ~ correctChr.(.)) %>%
                select_if(colSums(is.na(.)) != nrow(.))
@@ -91,21 +102,24 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
 }
 
 
-## Set arguments in the function which you're trying to improve == (2020-11-11) ================================================
-lazy_arg. <- function(...) {  # Needed to copy a concerned argments in advance
+## Set arguments in the function which you're trying to improve == (2020-12-11) ========================
+lazy_args. <- function(...) {  # Needed to copy a concerned argments in advance
     chrs <- pp.() %>% unlist()
-    lazy_do <- function(chr, ...) {
-        if(str_detect(chr, 'function')) {  # Delete 'name <- function(' part
-            chr <- str_locate(chr, 'function\\(') %>% .[2] %>% {str_sub(chr, . +1, str_length(chr))}
-        }
-        if (str_detect(chr, '#')) {  # Delete comment out
-            chr <- str_locate(chr, '#') %>% .[2] %>% {str_sub(chr, 1, . -1)}
-        }
-        chr2 <- gsub(',', ';', chr) %>% gsub('\\{|\\}|\\...)', '', .) %>% gsub('vec;|x;|d;|df;|dt;|dL;', '', .) %>% str_squish(.)
+    lazy_do <- function(char, ...) {
+        ## Delete 'name <- function(' part
+        if(str_detect(char, 'function')) char <- str_locate(char, 'function\\(') %>% .[2] %>% {str_sub(char, . +1, str_length(char))}
+        ## Delete comment out
+        if (str_detect(char, '#')) char <- str_locate(char, '#') %>% .[2] %>% {str_sub(char, 1, . -1)}
+        ## Replace colon to semicolon
+        chr2 <- gsub(',', ';', char) %>% gsub('\\{|\\}|\\.\\.\\.)', '', .) %>% gsub('vec;|x;|d;|df;|dt;|dL;', '', .) %>% str_squish(.) %>%
+                gsub('c\\(NA;', 'c\\(NA,', .) %>% gsub(';.*NA\\)', ', NA\\)', .)
+        semicolon_locate <- str_locate_all(chr2, '; [:digit:]') %>% {.[[1]][, 1]}
+        if (length(semicolon_locate) != 0) for (i in semicolon_locate) str_sub(chr2, start = i, end = i) <- ','
+
         eval(parse(text = chr2), envir = globalenv())
     }
-    for (i in seq_along(chrs)) lazy_do(chrs[i])
-}  # lazy_arg.()
+    walk(chrs, lazy_do)
+}  # lazy_args.()
 
 
 ## Find whether quasi-time format or not == (2020-09-04) ================================================
@@ -190,25 +204,25 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) { # Use this by ge
 }  # dt2time.(nya0)
 
 
-## Powerful copy & paste == (2020-11-26) ================================================
+## Powerful copy & paste == (2020-12-10) ================================================
 pp. <- function(...) {
-    type_taste <- function(d) d %>% retype() %>% map_df(~ type_sum(.))
+    type_taste <- function(d) d %>% 'hablar'::retype() %>% map_df(~ type_sum(.))
     type_watch <- function(d) {
         tenta <- pmin(nrow(d), 40) %>% {d[seq(.), ]} %>% 'tidyr'::fill(names(d), .direction = 'updown')  # Using half 20 rows to check
-        tenta_type <- map_dfr(1:floor(nrow(tenta) /2), function(i) tenta[i:nrow(tenta), ] %>% retype() %>% map_df(type_sum))
+        tenta_type <- map_dfr(1:floor(nrow(tenta) /2), function(i) tenta[i:nrow(tenta), ] %>% 'hablar'::retype() %>% map_df(type_sum))
         body_type <- tenta_type %>% group_by_all() %>% count() %>% select(!n)
 
         if (nrow(body_type) == 1) {  # No column names
             if (body_type %>% unlist() %>% unique() %>% length() > 1) {
-                out <- d %>% retype() %>% dt2time.(., timeSort = F)
+                out <- d %>% 'hablar'::retype() %>% dt2time.(., timeSort = F)
             } else if (ncol(d) == 1) {  # just vector you want
-                out <- d %>% retype() %>% unlist()
+                out <- d %>% 'hablar'::retype() %>% unlist()
             } else {  # just a body copy
                 out <- d
             }
         } else if (nrow(body_type) == 2 || nrow(body_type) > 4) {  # row1 = column names, row2 ~ body (Including copy of all chr data
           # d <- tibble(X1 = c('Animal','Bird','Cat','Dog')))  # Including all chr data
-            out <- d[-1, ] %>% retype() %>% dt2time.(., timeSort = F) %>% set_names(d[1, ])
+            out <- d[-1, ] %>% 'hablar'::retype() %>% dt2time.(., timeSort = F) %>% set_names(d[1, ])
         } else {  # row1~3 = colum names, other ~ body
             body_row1st <- tenta_type %>% group_by_all() %>% add_count() %>% .[['n']] %>% which.max()
             body_out <- d[-1:(-(body_row1st -1)), ]
@@ -225,7 +239,7 @@ pp. <- function(...) {
             trim_period <- str_sub(tit2, start = 1, end = 1) == '.'
             if (any(trim_period)) str_sub(tit2[trim_period], start = 1, end = 1) <- ''  # Distinguish '.' on the top location of names
 
-            out <- body_out %>% retype() %>% dt2time.(., timeSort = F) %>% set_names(tit2)
+            out <- body_out %>% 'hablar'::retype() %>% dt2time.(., timeSort = F) %>% set_names(tit2)
         }
         return (out)
     }
@@ -271,7 +285,7 @@ list2tibble. <- function(dL, ...) {
 
 
 ## Transform any data to list == (2020-11-10) ================================================
-dLformer. <- function(d, naturalOrder = F, ...) {  # naturalOrder = T/F, or desirable order like c(3, 4, 1, 2) accoding to the list's names
+dLformer. <- function(d, natural = F, ...) {  # natural = T/F, or desirable order like c(3, 4, 1, 2) accoding to the list's names
     if (is.atomic(d)){
         dL <- tibble(d) %>% list()
     } else if ('data.frame' %in% class(d)) {
@@ -290,7 +304,7 @@ dLformer. <- function(d, naturalOrder = F, ...) {  # naturalOrder = T/F, or desi
                     return (aT)
                 }
                 d <- mutate_if(d, ~ is_time.(.), ~ abbre_time(.))
-                dL <- 'naturalsort'::naturalorder(d[timeTF]) %>% d[., ] %>% split(., .[timeTF])
+                dL <- 'naturalsort'::natural(d[timeTF]) %>% d[., ] %>% split(., .[timeTF])
             } else {  # [ID1, ID2, ..., y1, y2, ...] --> [y1, y2, ...]
                 dL <- d[numTF] %>% as.list(.)
             }
@@ -298,7 +312,7 @@ dLformer. <- function(d, naturalOrder = F, ...) {  # naturalOrder = T/F, or desi
     } else {  # In case of list
         dL <- d
     }
-    dL <- dL %>% map(~ unlist(.) %>% .[!is.na(.)]) %>% {if (naturalOrder == TRUE) .['naturalsort'::naturalorder(names(.))] else .}
+    dL <- dL %>% map(~ unlist(.) %>% .[!is.na(.)]) %>% {if (natural == TRUE) .['naturalsort'::naturalorder(names(.))] else .}
 
     return (dL)
 }  # dLformer.(iris[1])  dLformer.(iris[4:5])  dLformer.(iris[3:5])
@@ -399,18 +413,19 @@ whichNear. <- function(vec, ref, back = F, ...) {
 whichSize. <- function(vec, ref, sizeVec, ...) whichNear.(vec, ref) %>% sizeVec[.]
 
 
-## Japanese or not for label & legend == (2020-02-06) ================================================
-jL. <- function(chr, ...) {
+## Japanese or not for label & legend == (2020-12-08) ================================================
+jL. <- function(chr, ...) {  # 'systemfonts'::system_fonts()$family %>% unique() %>% sort()
+    os_type <- which(c('Darwin', 'Linux', 'Windows') %in% Sys.info()['sysname'])
     if (class(chr) == 'character') {
-        if (!exists('chr') || is.null(chr) || anyNA(chr)) return (ifelse(Sys.getenv('OS') == '', 'Avenir Next', 'sans'))
+        if (!exists('chr') || is.null(chr) || anyNA(chr)) return (c('Avenir Next', 'sans')[os_type])
         tf <- str_detect(chr, pattern = '\\p{Hiragana}|\\p{Katakana}|\\p{Han}')
         if (any.(tf)) {
-            ifelse(Sys.getenv('OS') == '', 'HiraginoSans-W3', 'Meiryo')
+            c('HiraginoSans-W3', 'Noto Sans CJK JP', 'Yu Gothic')[os_type]  # Meiryo
         } else {
-            ifelse(Sys.getenv('OS') == '', 'Avenir Next', 'sans')  # Avenir  Ubuntu Open Sans Light  # names(pdfFonts())
+            c('Avenir Next', 'Noto Sans CJK JP', 'sans')[os_type]  # Ubuntu  Open Sans Light
         }
     } else {  # in case of 'expression()'
-        return (ifelse(Sys.getenv('OS') == '', 'Avenir Next', 'sans'))
+        return (c('Avenir Next', 'Noto Sans CJK JP', 'sans')[os_type])
     }
 }  # mtext(~, family = jL.(c(Xlab, Ylab)))
 
@@ -518,7 +533,7 @@ halfSeq. <- function(vec, ...) vec[-1] -diff(vec) /2  # Solution of bn = (an+1 -
 axisFun. <- function(XYlims, n = 5, ...) pretty(XYlims, n = n) %>% list(mainTicks = ., subTicks = halfSeq.(.))
 
 
-## Cyclic number if it's over range for the interactive input == (2020-06-26) ================================================
+## Cyclic number if it's over range for the interactive input == (2020-06-26) ========================
 n_cyc. <- function(num, n_max, ...) {
     if (length(num) == 1) {
         out <- if (is.na(num)) NA else {num %% n_max} %>% ifelse(. != 0, ., n_max)
@@ -543,7 +558,7 @@ colGra. <- function(vec, colors, ColorSteps = 13, ...) {
 }
 
 
-## Auto color assignment == (2020-10-01) ================================================
+## Auto color assignment == (2020-10-01) ========================
 colors. <- function(col = NULL, d = NULL, ...) {
     col_base <- c('black', 'antiquewhite3', 'cadetblue4', 'sienna3', 'palevioletred3', 'seagreen4', 'dodgerblue3', 'darkorange2',
                   'maroon4', 'hotpink2', 'peachpuff2', 'lightsalmon3', 'tomato2', 'deeppink3', 'slateblue2', 'deepskyblue4', 'darkseagreen3')
@@ -616,7 +631,7 @@ legeX. <- function(legePos_x, ...) par('usr')[1] +diff(par('usr')[1:2]) *legePos
 legeY. <- function(legePos_y, ...) par('usr')[3] +diff(par('usr')[3:4]) *legePos_y
 
 
-## Easy legend == (2020-06-21) ================================================
+## Easy legend == (2020-11-30) ================================================
 legend2. <- function(name, legePos = NA, col = NA, lty = NA, cex = NA, int = NA, ...) {
     par(family = jL.(name))
     nameLen <- 'stringi'::stri_numbytes(name) %>% max.(.)  # Count including multi bytes char and space
@@ -634,7 +649,7 @@ legend2. <- function(name, legePos = NA, col = NA, lty = NA, cex = NA, int = NA,
     if (anyNA(lty)) lty <- 1
     legend(x = legeX.(legeX), y = legeY.(legeY), legend = name, x.intersp = 0.65, y.intersp = int, cex = cex, horiz = F, lty = lty,
            box.lty = 0, lwd = 0.95, seg.len = 1.3, col = colTr.(col, tr = 0.9), text.col = col, bg = colTr.(NULL, 0.6))  # 'white'
-    par(family = ifelse(Sys.getenv('OS') == '', 'Avenir Next', 'sans'))
+    par(family = ifelse(Sys.getenv('OS') == '' & Sys.getenv('USER') != '', 'Avenir Next', 'sans'))
 }  # legend2.(letters[1:3], legePos = c(0.05, 0.9999), cex = 0.65, col = colors.()[1:3])
 
 
@@ -671,11 +686,11 @@ save2. <- function(name = NULL, wh = c(4.5, 3.3), ...) {
 }
 
 
-## Write list data to csv/xlsx file == (2020-10-21) ================================================
-write. <- function(d, name = NULL, ...) {
+## Write list data to csv/xlsx file == (2020-12-23) ================================================
+write. <- function(d, name = NULL, enc = 'cp932', ...) {
     if ('list' %in% class(d)) d <- list2tibble.(d)
     name <- {name %||% today2.()} %>% {if (str_detect(., '\\.csv')) . else str_c (., '.csv')}
-    write.csv(d, name, row.names = F, na = '', fileEncoding = 'cp932')
+    write.csv(d, name, row.names = F, na = '', fileEncoding = enc)
 }
 write2. <- function(d, name = NULL, sheet = NULL, ...) {
     dL <- if (!'list' %in% class(d)) list(d) else d
@@ -878,23 +893,24 @@ suppressMessages('devtools'::source_url('https://github.com/Nyu3/psd_R/blob/mast
 }  # crp.(iris[2:3])
 
 
-## Histograms plot == (2020-10-02) ================================================
-hist. <- function(d, naturalOrder = F, binW = 'st', freq = T, xlab = '', ylab = '', col = NULL, Xlims = NA, Ylims = c(0, NA),
-                  mar = par('mar'), plot = T, ...) {
+## Histograms plot == (2020-12-11) ================================================
+hist. <- function(d, natural = F, bin = 'st', freq = T, xlab = '', ylab = '', col = NULL, Xlims = NA, Ylims = c(0, NA),
+                  legePos = NA, name = NULL, mar = par('mar'), plot = T, overlay = F, ...) {
     ## Cut data range by Xlims
     ## Make the bin width (if vec is only integer, the ticks are positioned in the center of each bar)
     whatBreak <- function(vec) {
-        if (binW %in% c('St', 'st', 'Sturges') || all(abs(vec) <= 1)) {
-            return ('Sturges')
-        } else if (binW %in% c('Sc', 'sc', 'Scott')) {
-            return ('Scott')
+        out <- if (bin %in% c('St', 'st', 'Sturges') || !is.numeric(bin) && all(abs(vec) <= 1)) {
+            'Sturges'
+        } else if (bin %in% c('Sc', 'sc', 'Scott')) {
+            'Scott'
         } else if (all(vec %% 1 == 0, na.rm = T) && max(vec, na.rm = T) < 30) {
-            return ((min(vec, na.rm = T) -0.5) : (max(vec, na.rm = T) +0.5))  # dL <- floor(runif(100, 0, 30))
+            (min(vec, na.rm = T) -0.5) : (max(vec, na.rm = T) +0.5) # dL <- floor(runif(100, 0, 30))
         } else {
-            return (seq(floor(min(vec, na.rm = T)), ceiling(max(vec, na.rm = T)), by = binW))
+            seq(floor(min(vec, na.rm = T)) -bin, ceiling(max(vec, na.rm = T)) +bin, by = bin)  # error if the interval is small than the range
         }
+        return (out)
     }
-    dL <- dLformer.(d, naturalOrder) %>% map(~ .[!is.na(.)]) # list of vectors, not xy.
+    dL <- dLformer.(d, natural) %>% map(~ .[!is.na(.)])  # list of vectors, not xy.
     ## NOTE: Screening the range you wanna observe
     if (length(Xlims) > 1 && anyNA(Xlims)) {  # When Xlims = c(0, NA)
         dL <- map(dL, ~ . %>% {if (is.na(Xlims [1])) .[. <= Xlims[2]] else .[. >= Xlims[1]]})
@@ -925,8 +941,23 @@ hist. <- function(d, naturalOrder = F, binW = 'st', freq = T, xlab = '', ylab = 
     Ylim2 <- pr.(vec = ifelse(is.na(Ylims[2]), Ymax, Ylims[2]), Ylims, 0.08)
     ylab <- if (ylab == '' && freq) 'Frequency' else if (ylab == '' && !freq) 'Density' else ylab
     par(mar = mar, mgp = c(0, 0.4, 0))
-    for (i in seq_along(dL)) {
-        hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = Xlim2, ylim = Ylim2, col = colTr.(col[i], 0.80), breaks = whatBreak(dL[[i]]))
+    if (overlay == FALSE) {
+        for (i in seq_along(dL)) {
+            hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = Xlim2, ylim = Ylim2, col = colTr.(col[i], 0.80), breaks = whatBreak(dL[[i]]))
+            for (i in 1:2) {
+                axis(1, at = axisFun.(Xlim2, n = 5)[[i]], labels = (i == 1), tcl = -par('tcl') /i, cex.axis = 1, lend = 'butt', padj = -0.25)
+                axis(2, at = axisFun.(Ylim2, n = 6)[[i]], labels = (i == 1), tcl = -par('tcl') /i, cex.axis = 1, lend = 'butt')
+            }
+            box(bty = 'l')
+            mtext(xlab, side = 1, las = 1, cex = 1, family = jL.(xlab), line = par('mar')[1] -1.00)
+            mtext(ylab, side = 2, las = 3, cex = 1, family = jL.(ylab), line = par('mar')[2] -yPos.(Ylim2))
+        }
+    } else {
+        for (i in seq_along(dL)) {
+            hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = Xlim2, ylim = Ylim2, col = colTr.(col[i], 0.80),
+            breaks = whatBreak(dL[[i]]))
+            par(new = if (length(dL) == 1) F else (if (i != length(dL)) T else F))
+        }
         for (i in 1:2) {
             axis(1, at = axisFun.(Xlim2, n = 5)[[i]], labels = (i == 1), tcl = -par('tcl') /i, cex.axis = 1, lend = 'butt', padj = -0.25)
             axis(2, at = axisFun.(Ylim2, n = 6)[[i]], labels = (i == 1), tcl = -par('tcl') /i, cex.axis = 1, lend = 'butt')
@@ -934,10 +965,14 @@ hist. <- function(d, naturalOrder = F, binW = 'st', freq = T, xlab = '', ylab = 
         box(bty = 'l')
         mtext(xlab, side = 1, las = 1, cex = 1, family = jL.(xlab), line = par('mar')[1] -1.00)
         mtext(ylab, side = 2, las = 3, cex = 1, family = jL.(ylab), line = par('mar')[2] -yPos.(Ylim2))
+        if ((length(dL) != 1 || !is.null(name)) && !0 %in% name) {  # No legend is needed for one line at least. Or name = 0 returns no legend
+            if (is.null(name)) name <- names(dL) %>% {if (!is.null(.)) . else str_c('#', seq_along(dL))}  # Auto assignment
+            legend2.(name, legePos, col)
+        }
     }
     gp.()
     if (names(dev.cur()) == 'cairo_pdf') skipMess.(dev.off())
-}  # hist.(psd[1], binW = 0.1)
+}  # hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
 
 
 ## Pie chart for ratio == (2019-08-20) ================================================
@@ -1059,7 +1094,7 @@ corp. <- function(d, xlab = '', ylab = '', col = 5, legePos = NULL, li = F, el =
 }  # corp.(iris[3:4])
 
 
-## Boxplot oriented for quantile limit and full/half box == (2020-11-11) ================================================
+## Boxplot oriented for quantile limit and full/half box == (2020-12-14) ================================================
 boxplot2. <- function(dL, type, jit, val, wid, Ylims, col, name, xlab, ylab, mar, rot, cex, cut, ...) {
     if (cut == TRUE) {
         for (i in seq_along(dL)) {
@@ -1180,7 +1215,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, natural = F, wid = 0.65, Y
         ## selection
         if (!is.null(sel)) dLL <- map(dLL, ~ .[sel])
         ## sort in size to show the graph like Pareto chart
-        if (pareto == T) dLL <- map(dLL, function(x) median.(x) %>% order(., decreasing = T) %>% x[.])
+        if (pareto == T) dLL <- skipMess.(map(dLL, function(x) median.(x) %>% order(., decreasing = T) %>% x[.]))
         ## color marking
         if (!is.null(name_marking)) {  # name_marking = list(c('Log-Normal', 'Weibull')) # col_marking = list('grey88')
             for (i in seq_along(col_marking)) col[which(names(dLL[[1]]) %in% name_marking[[i]])] <- col_marking[[i]]
@@ -1323,7 +1358,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
    # barp.(iris[-5],spacer=-0.1)
 
 
-## Scatter plot marix (Non-parametric evaluation) == (2020-10-04) ========================
+## Scatter plot marix (Non-parametric evaluation) == (2020-10-04) ================================================
 sp. <- function(d, col = NULL, xlab = '', ylab = '', mar = par('mar'), cut = F, conv = T, ...) {  # (conv = T) means normalization of all data
     dt <- list2tibble.(d) %>% mutate_if(~ is.numeric(.), ~ ifelse(. == -Inf | . == Inf, NA, .))  # For normalization to make it
     dt <- pmap(dt, ~ is.na(c(...)) %>% any(.)) %>% unlist(.) %>% `!` %>% dt[., ]  # Delete the row containing one NA at least
@@ -1355,7 +1390,7 @@ sp. <- function(d, col = NULL, xlab = '', ylab = '', mar = par('mar'), cut = F, 
     )
     mtext(xlab, side = 1, las = 1, cex = 1, family = jL.(xlab), outer = T, line = par('mar')[1] -1.00)
     mtext(ylab, side = 2, las = 3, cex = 1, family = jL.(ylab), outer = T, line = par('mar')[2] -0.88)
-    par(family = ifelse(Sys.getenv('OS') == '', 'Avenir Next', 'sans'))
+    par(family = ifelse(Sys.getenv('OS') == '' & Sys.getenv('USER') != '', 'Avenir Next', 'sans'))
     if (names(dev.cur()) == 'cairo_pdf') skipMess.(dev.off())
     corMat.(dt)  # Research of several types of correlations
     cat('\n    Data number = ', nrow(dt), '\n\n')
@@ -1410,7 +1445,7 @@ mat2. <- function(dt, Xlims = NA, Ylims = NA, xlab = '', ylab = '', ...) {  # ma
 }  # mat2.(iris[-5])
 
 
-## Inf & NaN -> zero == (2020-10-31) ========================
+## Inf & NaN -> zero == (2020-10-31) ================================================
 clean0. <- function(y, ...) y %>% {case_when(. %in% c(NA, NaN, -Inf, Inf) ~ 0, TRUE ~ .)}  # clean0.(c(1:3, NA, NaN, Inf, -Inf))
 clean1. <- function(dt, ...) {
     dt <- dt %>% rowid_to_column('iD')
@@ -1619,7 +1654,7 @@ kurt. <- function(x) {
 }
 
 
-## Numeric conversion of lower and/or upper bounds generated by cut() == (2020-07-13) ==
+## Numeric conversion of lower and/or upper bounds generated by cut() == (2020-07-13) ========================
 ## [0,0.5], (0.5,1]
 ## https://stackoverflow.com/questions/32356108/output-a-numeric-value-from-cut-in-r
 cut_borders. <- function(x){
@@ -1728,7 +1763,7 @@ seqCtr. <- function(hit, Seq = 1, ...) {  # 'hit' is the target number out of th
 }  # which(hit > 15) %>% seqCtr.(., Seq = 5)  := trueList.(hit > 15) %>% {.[map.(., ~ length(.) > 5)]}
 
 
-## Pick up only true vector and return their list == (2020-02-07) ========================
+## Pick up only true vector and return their list == (2020-02-07) ================================================
 trueList. <- function(tfVec, ...) {  # 'tfVec' is constituted of TRUE or FALSE and its length is the same to the original vec.
     def.(c('ctr', 'ctrList', 'grpList'), list(vector(), 1, list()))
     for (i in seq_along(tfVec)) {
@@ -1747,20 +1782,20 @@ trueList. <- function(tfVec, ...) {  # 'tfVec' is constituted of TRUE or FALSE a
 }
 
 
-## Fast Anomaly Detection == (2020-01-11) ========================
+## Fast Anomaly Detection == (2020-01-11) ================================================
 cFilter. <- function(vec, shaper = 5, ...) {  # More odd shaper, more vivid change
     scaler1 <- length(vec) ^shaper *exp((mean.(vec) /sd.(vec)) ^(-1))  # Keep uniform for vector length in a way like coefficient of variation
     scaler2 <- 10 ^(-2 *shaper) *2 ^((shaper -3) /2)  # Keep uniform for many shapers
     vec %>% scale(.) %>% {cumsum(.) /length(.)} %>% {-. ^shaper} %>% {. *scaler1 *scaler2}
 }
-## 1st prototype == (2020-01-16) ========================
+## 1st prototype == (2020-01-16) ================================================
 fad0. <- function(vec, shaper = 3, ...) {  # Strongly recommended shaper = 3
     scaler1 <- (1 *length (vec)) ^shaper *exp((mean.(vec) /sd.(vec)) ^(-1) )  # "
     scaler2 <- 10 ^(-2 *shaper) *2 ^((shaper -3) /2)  # "
     balancer <- c(0, 0, diff(vec, differences = 2) ^shaper) %>% scale(.)  # Improvement
     vec %>% scale(.) %>% {cumsum(.) /length(.)} %>% {-. ^shaper} %>% {. *scaler1 *scaler2 *balancer}  # Watch the last term
 }
-## 2nd keen to outbreak == (2020-01-17) ========================
+## 2nd keen to outbreak == (2020-01-17) ================================================
 fad_keen. <- function(vec, shaper = 3, ...) {  # Strongly recommended shaper = 3 (only odd)
     zero_leveler <- function(x) case_when(abs(x) < 1e-20 ~ 0, x == Inf ~ 0, TRUE ~ x)  # Fear of float Inf effect approx. 0 on diff() or . /.
     seq_diff <- function(x) c(0, 0, diff(x, differences = 2)) %>% {sgn.(.) *. ^(shaper -1)} %>% zero_leveler(.) %>%
@@ -1892,7 +1927,7 @@ skipMess.(suppressPackageStartupMessages(library('changepoint')))
 }
 
 
-## My built-in data sets == (2020-10-02) ========================
+## My built-in data sets == (2020-10-02) ================================================
 psd <- 'tibble'::tibble (
     D50_trend = c(10.3505,10.3097,9.4281,9.2974,10.3038,10.0402,10.2097,10.0547,10.1309,10.1652,10.1814,10.0664,10.0646,9.8605,9.9342,9.7808,9.9886,9.7485,9.5912,9.9526,9.5072,9.6256,9.483,9.7851,9.7415,9.8569,9.8133,9.7731,9.831,9.8736,10.1973,10.1464,10.0612,10.0225,9.8804,9.8155,9.9157,9.9467,9.4711,9.3546,9.4517,9.75,10.0349,9.4525,9.4903,9.4697,9.4011,10.311,10.0956,10.2623,9.9476,9.9276,9.4301,9.4204,9.2182,10.2067,10.2306,10.2957,9.8977,10.0762,10.0518,10.2966,10.2803,10.2331,10.1465,10.0151,10.3837,10.0558,10.3344,9.0899,9.1398,9.1047,9.1635,8.618,9.0998,9.3331,9.2716,9.1881,9.2299,9.2615,9.0782,9.2421,9.2541,9.2267,9.1766,9.0327,8.8731,8.8742,8.8404,9.0275,8.9354,9.1421,8.8086,8.9932,9.0468,9.4939,9.5158,9.3488,9.3252,9.4686,9.2631,8.9989,9.0577,9.0464,8.8967,9.0058,9.2276,9.0795,9.0424,8.965,8.9938,9.0738,9.0631,8.9404,8.8106,8.7996,9.2329,8.8762,9.2519,9.2447,9.1554,9.2142,9.1968,9.1114,9.1923,9.1031,9.103,9.2033,9.2678,9.1331,9.2128,9.334,9.1667,9.2228,9.209,9.2497,9.2587,9.2215,9.0974,9.0589,8.9901,9.227,9.2319,9.1942,9.1959,9.2053,9.2142,9.1342,8.449,8.4339,8.5195,8.4926,8.2906,8.4999,8.4717,8.4853,8.4439,8.4278,8.4237,8.5516,8.7148,8.7185,8.7048,8.7232,8.4943,8.439,8.3935,8.6768,8.4648,8.5077,8.7209,8.8719,8.6227,8.3717,8.5017,8.7542,8.4899,8.4815,8.723,8.6122,8.5992,8.4312,8.641,8.6623,8.6808,9.1556,8.5823,8.5338,8.8629,8.8065,8.955,8.9868,8.6425,8.9018,8.9346,9.0891,9.1269,8.974,8.7781,8.7591),
      x_IMPMNN30_0612 = c(4.52,4.66597989949749,4.81195979899497,4.95793969849246,5.10391959798995,5.24989949748744,5.39587939698492,5.54185929648241,5.6878391959799,5.83381909547739,5.97979899497487,6.12577889447236,6.27175879396985,6.41773869346734,6.56371859296482,6.70969849246231,6.8556783919598,7.00165829145729,7.14763819095477,7.29361809045226,7.43959798994975,7.58557788944724,7.73155778894472,7.87753768844221,8.0235175879397,8.16949748743719,8.31547738693467,8.46145728643216,8.60743718592965,8.75341708542713,8.89939698492462,9.04537688442211,9.1913567839196,9.33733668341709,9.48331658291457,9.62929648241206,9.77527638190955,9.92125628140704,10.0672361809045,10.213216080402,10.3591959798995,10.505175879397,10.6511557788945,10.797135678392,10.9431155778894,11.0890954773869,11.2350753768844,11.3810552763819,11.5270351758794,11.6730150753769,11.8189949748744,11.9649748743719,12.1109547738693,12.2569346733668,12.4029145728643,12.5488944723618,12.6948743718593,12.8408542713568,12.9868341708543,13.1328140703518,13.2787939698492,13.4247738693467,13.5707537688442,13.7167336683417,13.8627135678392,14.0086934673367,14.1546733668342,14.3006532663317,14.4466331658291,14.5926130653266,14.7385929648241,14.8845728643216,15.0305527638191,15.1765326633166,15.3225125628141,15.4684924623116,15.614472361809,15.7604522613065,15.906432160804,16.0524120603015,16.198391959799,16.3443718592965,16.490351758794,16.6363316582915,16.7823115577889,16.9282914572864,17.0742713567839,17.2202512562814,17.3662311557789,17.5122110552764,17.6581909547739,17.8041708542714,17.9501507537688,18.0961306532663,18.2421105527638,18.3880904522613,18.5340703517588,18.6800502512563,18.8260301507538,18.9720100502513,19.1179899497487,19.2639698492462,19.4099497487437,19.5559296482412,19.7019095477387,19.8478894472362,19.9938693467337,20.1398492462312,20.2858291457286,20.4318090452261,20.5777889447236,20.7237688442211,20.8697487437186,21.0157286432161,21.1617085427136,21.3076884422111,21.4536683417085,21.599648241206,21.7456281407035,21.891608040201,22.0375879396985,22.183567839196,22.3295477386935,22.475527638191,22.6215075376884,22.7674874371859,22.9134673366834,23.0594472361809,23.2054271356784,23.3514070351759,23.4973869346734,23.6433668341709,23.7893467336683,23.9353266331658,24.0813065326633,24.2272864321608,24.3732663316583,24.5192462311558,24.6652261306533,24.8112060301508,24.9571859296482,25.1031658291457,25.2491457286432,25.3951256281407,25.5411055276382,25.6870854271357,25.8330653266332,25.9790452261307,26.1250251256281,26.2710050251256,26.4169849246231,26.5629648241206,26.7089447236181,26.8549246231156,27.0009045226131,27.1468844221106,27.292864321608,27.4388442211055,27.584824120603,27.7308040201005,27.876783919598,28.0227638190955,28.168743718593,28.3147236180905,28.4607035175879,28.6066834170854,28.7526633165829,28.8986432160804,29.0446231155779,29.1906030150754,29.3365829145729,29.4825628140704,29.6285427135678,29.7745226130653,29.9205025125628,30.0664824120603,30.2124623115578,30.3584422110553,30.5044221105528,30.6504020100503,30.7963819095477,30.9423618090452,31.0883417085427,31.2343216080402,31.3803015075377,31.5262814070352,31.6722613065327,31.8182412060302,31.9642211055276,32.1102010050251,32.2561809045226,32.4021608040201,32.5481407035176,32.6941206030151,32.8401005025126,32.98608040201,33.1320603015075,33.278040201005,33.4240201005025,33.57),
