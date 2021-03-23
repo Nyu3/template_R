@@ -20,7 +20,7 @@ gp. <- function(...) {
 ## Auto install == (2021-03-10) ========================
 query_lib. <- function(package_name, ...) {
   library('tidyr', quietly = T)
-  new_list <- installed.packages() %>% rownames %>% {package_name[!package_name %in% .]} %>% as.list
+  new_list <- utils::installed.packages() %>% rownames %>% {package_name[!package_name %in% .]} %>% as.list
   if (length(new_list) != 0) {
     purrr::walk(new_list, function(x) {
       cat(str_c('\n    trying to install ', x, '...\n\n'))
