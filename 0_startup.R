@@ -1,7 +1,7 @@
 ## ٩(´ᗜ`)و (´-`) .｡oO (Common function, 2018-12-03)
 
 
-## General parameters == (2021-03-03) ========================
+## General parameters == (2021-03-24) ========================
 gp. <- function(...) {
   # skipMess.('easypackages'::libraries(c('hablar', 'lubridate', 'readxl', 'tidyverse'))))
   # if (dev.list() > 0) dev.new(width = 3 * (1+ sqrt(5))/2, height = 3)  # 4.5, 3.3
@@ -9,7 +9,7 @@ gp. <- function(...) {
   if (Sys.info()['sysname'] == 'Darwin') grDevices::quartz.options(width = 4.5, height = 3.3)  # for Mac
   if (Sys.info()['sysname'] == 'Linux') options(repr.plot.width = 4.5, repr.plot.height = 3.3)  # for JupyterLab; confirm by options()$bitmapType
   if (Sys.info()['sysname'] == 'windows') grDevices::windows.options(width = 4.5, height = 3.3)  # for Windows
-  par(mgp = c(0, 0.2, 0), ann = F, xaxs = 'i', yaxs = 'i', col = 'grey13', col.axis = 'grey13', fg = 'grey13', ps = 13, lwd = 1.3,
+  par(mgp = c(2, 0.2, 0), ann = T, xaxs = 'i', yaxs = 'i', col = 'grey13', col.axis = 'grey13', fg = 'grey13', ps = 13, lwd = 1.3,
       mar = c(2.4, 4, 0.5, 1), tcl = 0.25, cex.axis = 1, las = 1,
       family = which(c('Darwin', 'Linux', 'Windows') %in% Sys.info()['sysname']) %>% c('Avenir Next', 'sans', 'Yu Gothic')[.]
   )
@@ -492,10 +492,11 @@ hankana2zenkana. <- function(chr, ...) {
 }
 
 
-## Zenkaku convert for Mac/Win == (2020-09-16) ========================
+## Zenkaku convert for Mac/Win == (2021-03-24) ========================
 zenk. <- function(chr, ...) {
+  query_lib.('stringi')
   out <- chr %>% as.character(.) %>% gsub('\r\n', '', .) %>% gsub('  ', '', .) %>% { # gsub('ー', '-', .) # Avoid killing '\n' for box2.()
-           if (any.(validUTF8(.)) || Sys.getenv('OS') != '') . else iconv(., 'utf-8', 'cp932')
+           if (any.(validUTF8(.)) || Sys.getenv('OS') != '') . else iconv(., 'utf8', 'cp932')
          } %>%
          hankana2zenkana.() %>%
          map_chr(~ stringi::stri_trans_nfkc(.))
@@ -797,7 +798,7 @@ intersectX. <- function(df1, df2, ...) {
 }  # plt.(list(df1, df2); abline(v = intersectX.(df1, df2))
 
 
-## Quick plot == (2020-11-27) ========================
+## Quick plot == (2021-03-24) ========================
 plt. <- function(d, natural = F, lty = NA, lwd = NA, xlab = '', ylab = '', col = NULL, Xlims = NA, Ylims = NA,
                  legePos = NA, name = NULL, PDF = T, add = 1, mar = par('mar'), tcl = par('tcl'), type = 0, grid = F, ...) {
   ## You must prepare a data of list(tibble(x = ~, y = ~)) to draw x-y graph; otherwise n-x & n-y graph are separately drawn
@@ -824,7 +825,7 @@ plt. <- function(d, natural = F, lty = NA, lwd = NA, xlab = '', ylab = '', col =
   col <- colors.(col, d = max(length(dL), length(name)) %>% seq(.))
   def.(c('Xlim2', 'Ylim2'), list(pr.(map.(dL, ~ .[1]), Xlims, 0.02), pr.(map.(dL, ~ .[2]), Ylims, 0.12)))
   if (add != 2) {  # add = 0; just prepare empty camvas, add = 1; normal plot, add = 2; add lines or points only
-    par(mar = mar, tcl = tcl)
+    par(mar = mar, tcl = tcl, ann = F)
     plot.new()  # ex) plt.(d, add = 1); polygon (~); plt.(d, add = 2)
     plot.window(xlim = Xlim2, ylim = Ylim2)
     if (grid == TRUE) abline(v = sort(unlist(axisFun.(Xlim2, n=6))), h = sort(unlist(axisFun.(Ylim2, n=5))), col = 'grey98')
@@ -949,7 +950,7 @@ crp. <- function(d, lty = NA, lwd = NA, xlab = '', ylab = '', col = NULL, Xlims 
 }  # crp.(iris[2:3])
 
 
-## Histograms plot == (2020-12-11) ========================
+## Histograms plot == (2021-03-24) ========================
 hist. <- function(d, natural = F, bin = 'st', freq = T, xlab = '', ylab = '', col = NULL, Xlims = NA, Ylims = c(0, NA),
                   legePos = NA, name = NULL, mar = par('mar'), plot = T, overlay = F, ...) {
   ## Cut data range by Xlims
@@ -996,7 +997,7 @@ hist. <- function(d, natural = F, bin = 'st', freq = T, xlab = '', ylab = '', co
   }
   Ylim2 <- pr.(vec = ifelse(is.na(Ylims[2]), Ymax, Ylims[2]), Ylims, 0.08)
   ylab <- if (ylab == '' && freq) 'Frequency' else if (ylab == '' && !freq) 'Density' else ylab
-  par(mar = mar, mgp = c(0, 0.4, 0))
+  par(mar = mar, mgp = c(0, 0.4, 0), ann = F)
   if (overlay == FALSE) {
     for (i in seq_along(dL)) {
       hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = Xlim2, ylim = Ylim2, col = colTr.(col[i], 0.80), breaks = whatBreak(dL[[i]]))
@@ -1032,7 +1033,7 @@ hist. <- function(d, natural = F, bin = 'st', freq = T, xlab = '', ylab = '', co
 }  # hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
 
 
-## Pie chart for ratio == (2021-03-06) ========================
+## Pie chart for ratio == (2021-03-24) ========================
 pie. <- function(d, col = NULL, cex = 0.85, per = F, digit = 1, ...) {  # Only data.frame acceptable (to use column name at the center of pie)
   dL <- dL_name <- list()  # dLformer.(d)
   if (is.data.frame(d)) {  # Only use categorical data
@@ -1049,7 +1050,7 @@ pie. <- function(d, col = NULL, cex = 0.85, per = F, digit = 1, ...) {  # Only d
     stop('The data must include categorical vector or data.frame...\n\n', call. = F)
   }
   ## plot
-  par(mar = c(1, 2, 1, 2))
+  par(mar = c(1, 2, 1, 2), ann = F)
   for (i in seq_along(dL)) {
     colors <- colors.(col, d = dL[[i]])
     vals <- if (per) {dL[[i]] /sum(dL[[i]]) *100} %>% round(., digit) else as.numeric(dL[[i]])
@@ -1066,7 +1067,7 @@ pie. <- function(d, col = NULL, cex = 0.85, per = F, digit = 1, ...) {  # Only d
 }  # pie.(iris[41:120,5], per = T)
 
 
-## Linear correlation plot == (2022-02-24) ========================
+## Linear correlation plot == (2021-03-24) ========================
 ## NOTE.1  Regression analysis is strictly applicable to cause (x) and effect (y; random variable) on the assumption that x has NO error...
 ## NOTE.2  Correlation analysis sees BOTH x & y as random variables; thus don't use linear regression and prob. ellipse at the same time...
 ## Trivia.1  You'll see the cross points on the line and ellipse can draw y-axis parallel lines as tangent
@@ -1182,7 +1183,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
     }
   }
   ## plot
-  par(mar = mar, mgp = c(0, 0.4, 0))
+  par(mar = mar, mgp = c(0, 0.4, 0), ann = F)
   plot.new()
   plot.window(xlim = Xlim2, ylim = Ylim2)
   Colcol <- if (nrow(d) >= 20) {
@@ -1208,7 +1209,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
 }  # corp.(iris[c(1, 4)], x_lr = c(5, 7))  corp.(iris[c(1, 4)], li = T, x_lr = c(5, 7))
 
 
-## Boxplot oriented for quantile limit and full/half box == (2021-02-23) ========================
+## Boxplot oriented for quantile limit and full/half box == (2021-03-24) ========================
 boxplot2. <- function(dL, type, jit, val, wid, Ylims, col, name, xlab, ylab, mar, rot, cex, cut, digit, ...) {
   if (cut == TRUE) {
     for (i in seq_along(dL)) {
@@ -1278,7 +1279,7 @@ boxplot2. <- function(dL, type, jit, val, wid, Ylims, col, name, xlab, ylab, mar
   }  # END of textFun()
 
   ## base plot
-  par(mar = mar, mgp = c(0, 0.4, 0))
+  par(mar = mar, mgp = c(0, 0.4, 0), ann = F)
   if (length(dL) > 30) par(mar = c(4, 3.3, 0.1, 1.0))
   Xlim2 <- c(-1, 2 *length(dL) +1) +wid *c(1, -1)
   Ylim2 <- pr.(dL, Ylims, 0.07)  # NOTE: text of Max or Min is not shown by 0.05
@@ -1364,7 +1365,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, natural = T, wid = 0.65, Y
 }  # box2.(iris)  box2.(iris[-5], col = 1:4, rot = 22, cut = T, pareto = T)
 
 
-## Bar plot == (2021-03-06) ========================
+## Bar plot == (2021-03-24) ========================
 barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NULL, elementChange = F, xlab = '', ylab = '',
                   Ylims = c(0, NA), col = NULL, legePos = NULL, name = NULL, cex = NULL, rot = 0, ...) {
   query_lib.('stringi')
@@ -1418,7 +1419,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
   pos_range <- {range(pos) +0.5 *c(-1, 1)} %>% delta.() %>% {. *0.05}  # Spread out by 5%
   pos_lim <- {range(pos) +0.5 *c(-1, 1)} %>% {if (!xyChange) c(.[1] -pos_range, .[2]) else c(.[1], .[2] +pos_range)}
   bar_lim <- {if (!cum) mat_avg else apply(mat_avg, 2, sum.)} %>% range.() %>% {if (.[1] >= 0) c(0, .[2]) else .} %>% pr.(., Ylims, 0.13)
-  par(mar = if (!xyChange) c(2.4, 4, 0.5, 1) else c(0.5, 4, 2.4, 1), mgp = if (!xyChange) c(0, 0.4, 0) else c(0, 0.2, 0))
+  par(mar = if (!xyChange) c(2.4, 4, 0.5, 1) else c(0.5, 4, 2.4, 1), mgp = if (!xyChange) c(0, 0.4, 0) else c(0, 0.2, 0), ann = F)
   plot.new()
   plot.window(xlim = if(!xyChange) pos_lim else bar_lim, ylim = if(!xyChange) bar_lim else pos_lim)
   barplot(mat_avg, beside = !cum, horiz = xyChange, axes = F, axisnames = F, add = T, col = col2,
