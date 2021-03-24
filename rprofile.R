@@ -1,8 +1,9 @@
 ## ٩(´ᗜ`)و (´-`) .｡oO (the script for .Rprofile, 2021-03-24) |████████████████████████|
 
+
 ## Install vital packages if necessary == (2021-03-23) ========================
 pkgs_must <- c('bindrcpp', 'changepoint', 'devtools', 'DT', 'ellipse', 'extrafont', 'hablar', 'logKDE', 'minerva', 'minpack.lm', 'naturalsort',
-                          'pracma', 'psych', 'robustbase', 'tidyverse', 'VGAM', 'viridis', 'vroom')
+               'pracma', 'psych', 'robustbase', 'tidyverse', 'VGAM', 'viridis', 'vroom')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
 if (sum(pkgs_lack) > 0) {
   for (i in seq_along(which(pkgs_lack))) {
@@ -32,14 +33,14 @@ setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
 })
 
 
-## Fix the default parameters for a graphical device == (2020-12-08) ========================
+## Fix the default parameters for a graphical device == (2021-03-24) ========================
 ## https://stackoverflow.com/questions/48839319
 setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
   f_device <- getOption('device')
   newDev <- function(...) {
     f_device(...) 
     graphics::par(
-      mgp = c(0, 0.2, 0), ann = F, xaxs = 'i', yaxs = 'i', col = 'grey13', col.axis = 'grey13', fg = 'grey13', ps = 13, lwd = 1.3,
+      mgp = c(2, 0.2, 0), ann = T, xaxs = 'i', yaxs = 'i', col = 'grey13', col.axis = 'grey13', fg = 'grey13', ps = 13, lwd = 1.3,
       mar = c(2.4, 4, 0.5, 1), tcl = 0.25, cex.axis = 1, las = 1,
       family = c('Avenir Next', 'sans', 'Yu Gothic')[which(c('Darwin', 'Linux', 'Windows') %in% Sys.info()['sysname'])]  # Noto Sans CJK JP
     )
@@ -100,8 +101,10 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
 attach(.nya0env)  # Confirm by ls('.nya0env') and search()
 
 
-## Font registeration == (2019-07-30) ========================
-if (.Platform$'OS.type' == 'windows') windowsFonts(Meiryo = windowsFont('Meiryo'))
+## Font registeration == (2021-03-24) ========================
+## https://ill-identified.hatenablog.com/entry/2020/10/03/200618
+## https://taken.jp/font-family-name-english-japanese.html
+if (.Platform$'OS.type' == 'windows') windowsFonts(`Yu Gothic` = windowsFont('Yu Gothic'))
 
 
 ## Move to casual space == (2020-12-08) ========================
