@@ -353,7 +353,7 @@ split2. <- function(d, ...) {
   if (sum(numTF) == 0) {
     stop('The data does NOT include any numeric data...\n\n', call. = F)#stop('Try again with a ID data...\n\n', call. = F)
   } else if (sum(tabTF) == 1) {  # [ID1, ID2, ... , y1, y2, ...]
-    split(d, d[tab_col[1]]) %>% map(~ .[!chrTF] %>% as_tibble())
+    split(d, d[tab_col[1]]) %>% map(~ .[!tabTF] %>% as_tibble())
     split(d, d[tabTF]) %>% map(~ .[!tabTF] %>% as_tibble())
 
   } else if (sum(tabTF) == 0){  # [y1, y2, ...]
