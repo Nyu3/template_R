@@ -343,7 +343,7 @@ xyL2. <- function(d, fix = 1, ...) {  # In case of [x, y1, y2, ...] --> [x, y1],
 }  # xyL2.(iris, 5) %>% walk(., box2.)
 
 
-## Split ID data into list in a tidy way == (2021-06-10) ========================
+## Split ID data into list in a tidy way == (2021-06-23) ========================
 split2. <- function(d, ...) {
   tabTF <- map_lgl(d, ~ is.character(.) | is.factor(.))
   numTF <- map_lgl(d, ~ is.numeric(.))
