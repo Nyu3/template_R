@@ -48,15 +48,21 @@ setwd. <- function(...) {  # Needed to copy a file path on the console in advanc
 }  # setwd.()
 
 
-## Lightly vroom() for csv == (2021-02-11) ========================
+## Lightly vroom() for csv == (2021-07-29) ========================
 vroom. <- function(file = NULL, col_names = T, skip = 0, n_max = Inf, ...) {
-  query_lib.('vroom')
+  query_lib.(c('hablar', 'vroom'))
   File <<- file %||% {  # You may use the file name later in case of using write.()
            dir(pattern = 'csv|CSV') %>% {.[!str_detect(., '\\$')]} %>% chooseOne.(., '\"Target File\"')}
-  enc <- skipMess.(readr::guess_encoding(File)) %>% .[[1,1]] %>% {
+  enc <- skipMess.(readr::guess_encoding(File[1])) %>% .[[1,1]] %>% {
     if (str_detect(., 'ASCII|Shift_JIS|windows')) 'cp932' else if (str_detect(., 'UTF-8')) 'utf8' else 'unknown'
   }
-  out <- map_dfr(File, ~ skipMess.(vroom::vroom(., locale = locale(encoding = enc), col_names = col_names, skip = skip, n_max = n_max)))
+  if (length(File) == 1) {
+    out <- skipMess.(vroom::vroom(File[1], locale = locale(encoding = enc), col_names = col_names, skip = skip, n_max = n_max))
+  } else {
+    out <- skipMess.(
+             map_dfr(file, ~ skipMess.(vroom::vroom(., locale = locale(encoding = enc), col_types = cols(.default = 'c'))))
+           ) %>% hablar::retype()
+  }
   return(out)
 }
 
@@ -218,8 +224,8 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 }  # dt2time.(nya0)
 
 
-## Powerful copy & paste == (2021-06-17) ========================
-pp. <- function(n = NULL, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
+## Powerful copy & paste == (2021-07-19) ========================
+pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
   query_lib.(c('hablar', 'stringdist'))
   clip <- readr::clipboard() %>% map_chr(~ str_replace_all(., '#DIV/0!', 'NA'))
   if (vectorize == TRUE) {  # for lazy_args.(); map.(clip, ~ str_count(., ' ')) %>% {. > 2} %>% any --> TRUE
@@ -264,6 +270,7 @@ pp. <- function(n = NULL, vectorize = F, ...) {  # n: instruct a row limit of co
     }
   }
   d <- d %>% set_names(., names(d) %>% gsub('NA', 'X', .) %>% if_else(nchar(.) == 0, 'X', .) %>% make.unique(., sep = '_')) %>%
+       map_df(~ gsub('#N/A', NA, .)) %>%
        hablar::retype() %>%
        dt2time.(., timeSort = F) %>%
        mutate_if(., ~ is.character(.), ~ correctChr.(.)) %>%
@@ -343,6 +350,22 @@ xyL2. <- function(d, fix = 1, ...) {  # In case of [x, y1, y2, ...] --> [x, y1],
 }  # xyL2.(iris, 5) %>% walk(., box2.)
 
 
+## Transform [ID,y] <--> [y1,y2,y3, ...] == (2021-06-24) ========================
+t2. <- function(d, ...) {
+#[y]
+d <- iris
+ab2 <- d %>% mutate(nya = row_number()) %>% pivot_longer(!nya, names_to = 'ID', values_to = 'y') # rowid~は1列目に, row_number()は最後列
+
+d <- diamonds
+  tab_col <- map_lgl(d, ~ is.character(.) | is.factor(.)) %>% names(d)[.]
+  num_col <- map_lgl(d, ~ is.numeric(.)) %>% names(d)[.]
+
+  ## []
+  out <- if (length(tab_col) *length(num_col) == 1) d else d %>% pivot_longer(-tab_col, names_to = 'ID', values_to = 'y')
+
+}
+
+
 ## Split ID data into list in a tidy way == (2021-06-23) ========================
 split2. <- function(d, ...) {
   tabTF <- map_lgl(d, ~ is.character(.) | is.factor(.))
@@ -359,7 +382,7 @@ split2. <- function(d, ...) {
   } else if (sum(tabTF) == 0){  # [y1, y2, ...]
     as.list(d)
   }
-}  # split2.(iris) split2.(us_rent_income)
+}  # split2.(iris)  split2.(us_rent_income)  split2.(iris[4:5]) %>% list2tibble.()
 
 
 ## Split a data into more / less case == (2021-02-23) ========================
@@ -453,22 +476,32 @@ html. <- function(d, ...) {
 }
 
 
-## Quick check for basic statistics == (2020-05-19) ========================
+## Quick check for basic statistics == (2021-06-30) ========================
 base_stats. <- function(d, ...) {
-  statsN <- c('Median', 'Avg', 'SD', 'Max', 'Max without outliers', 'Min without outliers', 'Min', 'Range', 'Total',
-              'Skew', 'Kurtosis', 'Number')
+  stats_names <- c('Median', 'Avg', 'SD', 'Max', 'Max without outliers', 'Min without outliers', 'Min', 'Range', 'Total',
+                   'Skew', 'Kurtosis', 'Number')
   if (is.list(d)) {
-    dt <- list2tibble.(d) %>% select_if(~ is.numeric(.) | is_time.(.) & n_distinct(.) > 1)  # No column with the same value
-    Stats <- rbind(median.(dt), mean.(dt), sd.(dt), max.(dt), max2.(dt, na = T), min2.(dt, na = T), min.(dt), delta.(dt), sum.(dt),
-                   skew.(dt), kurt.(dt), length.(dt))
-    res <- cbind(Basic = statsN, Stats) %>% as_tibble(.) %>% {skipMess.(type_convert(.))}
+    mini_stats <- function(...) {
+      dt <- list2tibble.(d) %>% select_if(~ is.numeric(.) | is_time.(.) & n_distinct(.) > 1)  # No column with the same value
+      Stats <- rbind(median.(dt), mean.(dt), sd.(dt), max.(dt), max2.(dt, na = T), min2.(dt, na = T), min.(dt), delta.(dt), sum.(dt),
+                     skew.(dt), kurt.(dt), length.(dt))
+      res <- cbind(Basic = stats_names, Stats) %>% as_tibble() %>% {skipMess.(type_convert(.))}
+    }
+    tab_col <- d %>% select_if(~ is.character(.) | is.factor(.)) %>% names()
+    if (length(tab_col) == 1) {
+      if (unique(d[tab_col]) %>% nrow() > 1) {
+        out <- d %>% group_by(get(tab_col)) %>% summarise(mini_stats()) %>% rename('{tab_col}' := 'get(tab_col)') %>% ungroup()
+      }
+    } else {
+      out <- d %>% mini_stats()
+    }
   } else if (is.atomic(d)) {
     Stats <- c(median.(d), mean.(d), sd.(d), max.(d), max2.(d), min2.(d), min.(d), delta.(d), sum.(d), length.(d))
     vecN <- substitute(d) %>% as.character(.) %>% {if (length(.) == 1) . else .[2]}  # Confirm; substitute(iris [[1]]) %>% as.character
-    res <- bind_cols(Basic = statsN, x = Stats) %>% set_names(c('Basic', vecN))
+    out <- bind_cols(Basic = statsN, x = Stats) %>% set_names(c('Basic', vecN))
   }
-  return(res)
-}  # base_stats.(iris) %>% html.(.)
+  return(out)
+}  # base_stats.(iris) %>% html.()
 
 
 ## Search for the nearest number of which the target vector is almost equal to the reference value == (2020-10-08) ============
@@ -636,7 +669,7 @@ colGra. <- function(vec, color, ColorSteps = 13, ...) {
 }  # plot(iris[1:2], col = colGra.(iris[2], c('red', 'blue')))
 
 
-## Auto color assignment == (2021-06-22) ========================
+## Auto color assignment == (2021-06-29) ========================
 color2. <- function(color = NULL, len = NULL, ...) {
   query_lib.(c('RColorBrewer', 'scico', 'viridis', 'viridisLite'))
   color_base <- c('black', 'firebrick1', 'deepskyblue4', 'antiquewhite3', 'sienna3', 'palevioletred3', 'seagreen4', 'dodgerblue3',
@@ -666,9 +699,11 @@ color2. <- function(color = NULL, len = NULL, ...) {
   } else if (!is.null(color) && !is.null(len)) {  # color2.(col = c('grey35', 'blue3'), len = ncol(iris))
     out <- color_clean() %>% rep(., times = len) %>% {.[1:len]}
   } else if (is.null(color) && !is.null(len)) {  # Auto assignment according to data
-    if (len < 3) {
+    if (len == 1) {
+      out <- 'grey13'
+    } else if (len == 2) {
       out <- c('black', 'grey60')
-    } else if (len < 4) {  # color2.(len = ncol(iris[1:3]))
+    } else if (len == 3) {  # color2.(len = ncol(iris[1:3]))
       out <- color_base[1:3]
     } else {  # color2.(len = c(iris, iris, iris) %>% ncol())
     # NOTE: name conflict of map() due to loading 'maps' package by use of 'pals'
@@ -834,9 +869,9 @@ intersectX. <- function(df1, df2, ...) {
 }  # plt.(list(df1, df2); abline(v = intersectX.(df1, df2))
 
 
-## Quick plot == (2021-06-16) ========================
+## Quick plot == (2021-07-22) ========================
 plt. <- function(d, natural = F, lty = NA, lwd = NA, xlab = '', ylab = '', col = NULL, xlim = NA, ylims = NA,
-                 legePos = NA, name = NULL, PDF = T, add = 1, mar = par('mar'), tcl = par('tcl'), type = 0, grid = F, ...) {
+                 legePos = NA, name = NULL, mar = par('mar'), PDF = T, add = 1, tcl = par('tcl'), type = 0, grid = F, ...) {
   ## You must prepare a data of list(tibble(x = ~, y = ~)) to draw x-y graph; otherwise n-x & n-y graph are separately drawn
   if ('list' %in% class(d)) {  # [[x1, y1], [x2, y2], ...]
     if (map_lgl(d, ~ ncol(.) == 2) && map.(d, map_lgl, is.numeric)) {
@@ -929,7 +964,6 @@ dens. <- function(d, bw = 1, natural = F, lty = NA, lwd = NA, xlab = '', ylab = 
     }
     return(tibble(x = Dens$x, y = Dens$y))
   }  # END of kde_xy()
-
   dL <- dLformer.(d, natural) %>% map(., ~ kde_xy(.)) %>% {if (cum) map(., ~ tibble(x = .[[1]], y = cumP0.(.))) else .}
       # stop('Only available for [ID,y] or [y1,y2, ...]', call. = F)
 #  if (length(xlim) == 2 && !is.na(xlim[1])) xlim <- NA  # the graph is hard to see if the x limit is set

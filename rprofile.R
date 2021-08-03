@@ -66,8 +66,8 @@ formals(source)$chdir <- if (R.Version()$major < 4) TRUE else FALSE
 formals(unlist)$use.names <- FALSE
 
 
-## Access permission names == (2020-12-08) ========================
-researcher_names <- c('y-nishino', 'c-nakagawa', '')  # The last is assigned to Ubuntu
+## Access permission names == (2021-08-03) ========================
+researcher_names <- c('y-nishino', '')  # The last is assigned to Ubuntu
 production_names <- c('Microtrac', 't-hayakawa')
 yourname <- Sys.getenv('USERNAME')
 
@@ -107,9 +107,9 @@ attach(.nya0env)  # Confirm by ls('.nya0env') and search()
 if (.Platform$'OS.type' == 'windows') windowsFonts(`Yu Gothic` = windowsFont('Yu Gothic'))
 
 
-## Move to casual space == (2020-12-08) ========================
+## Move to casual space == (2021-08-03) ========================
 if (Sys.info()['sysname'] == 'Darwin') setwd('~/Desktop')  # The directory anywhere you click ~.R file gives priority to this command
-if (Sys.info()['sysname'] == 'Windows') setwd(file.path(Sys.getenv('USERPROFILE'), 'Desktop'))
+if (Sys.info()['sysname'] == 'Windows') setwd(file.path(Sys.getenv('USERPROFILE'), 'OneDrive/デスクトップ'))  # Desktop
 
 
 ## Hint message & delete objects == (2021-06-17) ========================
