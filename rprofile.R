@@ -110,7 +110,7 @@ if (.Platform$'OS.type' == 'windows') windowsFonts(`Yu Gothic` = windowsFont('Yu
 ## Move to casual space == (2021-08-10) ========================
 if (Sys.info()['sysname'] == 'Darwin') setwd('~/Desktop')  # The directory anywhere you click ~.R file gives priority to this command
 if (Sys.info()['sysname'] == 'Windows') {
-  if (file.exist(file.path(Sys.getenv('USERPROFILE'), 'OneDrive/デスクトップ')) {
+  if (file.exists(file.path(Sys.getenv('USERPROFILE'), 'OneDrive/デスクトップ'))) {
     setwd(file.path(Sys.getenv('USERPROFILE'), 'OneDrive/デスクトップ'))
   } else {
     setwd(file.path(Sys.getenv('USERPROFILE'), 'Desktop'))
