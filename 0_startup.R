@@ -642,8 +642,9 @@ choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, ...) {
   }
   if (Sys.info()['sysname'] == 'windows') {
     cat('======================================\n')
+  } else {
+    cat('|████████████████████████|\n')
   }
-  cat('|████████████████████████|\n')
   return(if (chr == TRUE) factors[num] else num)  # text or its number
 }  # choice.(LETTERS[1:2], note = 'Blood type', one = T)
 
