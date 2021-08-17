@@ -641,7 +641,7 @@ choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, ...) {
     }
   }
   if (Sys.info()['sysname'] == 'windows') {
-    cat('======================================\n')
+    str_c('|', str_dup(stringi::stri_enc_toascii('█'), 24), '|\n') %>% cat
   } else {
     cat('|████████████████████████|\n')
   }
@@ -829,7 +829,7 @@ save2. <- function(name = NULL, wh = c(4.5, 3.3), ...) {
 }
 
 
-## Write list data to csv/xlsx file == (2021-08-13) ========================
+## Write list data to csv/xlsx file == (2021-08-17) ========================
 write. <- function(d, name = NULL, enc = NULL, ...) {
   if ('list' %in% class(d)) d <- list2tibble.(d)
   name <- {name %||% today2.()} %>% {if (str_detect(., '\\.csv')) . else str_c (., '.csv')}
@@ -845,6 +845,13 @@ write2. <- function(d, name = NULL, sheet = NULL, ...) {
   if (!is.null(sheet)) names(dL) <- sheet
   openxlsx::write.xlsx(dL, file = str_c(name %||% today2.(), '.xlsx'), overwrite = T)
 }  # write2.(list(iris, mtcars, chickwts, quakes))
+write3. <- function(d, name = NULL, sheet = NULL, ...) {
+  query_lib.('writexl')
+  dL <- if (!'list' %in% class(d)) list(d) else d
+  if (is.null(names(dL))) names(dL) <- str_c('#', seq_along(dL))
+  if (!is.null(sheet)) names(dL) <- sheet
+  writexl::write_xlsx(dL, path = str_c(name %||% today2.(), '.xlsx'))
+}  # write3.(list(a = iris, b = mtcars, c = chickwts, d = quakes), name = 'nya')
 
 
 ## Fitting by GAM (Generized Additive Model) - GCV (Generized Cross Validation) == (2021-03-25) ========================
