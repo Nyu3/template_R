@@ -62,7 +62,7 @@ library('graphics')
 formals(axis)[c('col.ticks', 'lwd.ticks', 'lwd')] <- list('grey13', 1.3, 0)
 library('minpack.lm', quietly = T)
 formals(nlsLM)$control <- nls.lm.control(maxiter = 1024, nprint = 0)  # nprint = 1 denotes to show results
-formals(source)$chdir <- if (R.Version()$major < 4) list(TRUE) else list(FALSE)
+formals(source)$chdir <- if (R.Version()$major != '4') list(TRUE) else list(FALSE)
 formals(unlist)$use.names <- FALSE
 
 
