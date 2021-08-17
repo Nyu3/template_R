@@ -402,12 +402,12 @@ split2. <- function(d, ...) {
 }  # split2.(iris)  split2.(us_rent_income)  split2.(iris[4:5]) %>% list2tibble.()
 
 
-## Split a data into more / less case == (2021-02-23) ========================
+## Split a data into more / less case == (2021-08-17) ========================
 case2. <- function(d, div = NULL, percentage = T, ...) {
   if ('list' %in% class(d) || is.null(div)) return(d)
   if (is.atomic(d)) d <- tibble(d)
   if (is.data.frame(d) && ncol(d) > 1) stop('Make the data with ONE column...\n\n', call. = F)
-  d <- d %>% filter(rowSums(is.na(.)) != ncol(.))
+  d <- d %>% dplyr::filter(rowSums(is.na(.)) != ncol(.))
   label <- case_when(d < div ~ str_c('x < ', div), TRUE ~ str_c('x ≥ ', div))
   if (percentage == TRUE) {
     per_chr <- formatC(100 *table(label) /length(label), format = 'f', digits = 1) %>% str_c(., '%')
@@ -1316,7 +1316,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
 }  # corp.(iris[c(1, 4)], x_lr = c(5, 7))  corp.(iris[c(1, 4)], li = T, x_lr = c(5, 7))
 
 
-## Boxplot oriented for quantile limit and full/half box == (2021-08-06) ========================
+## Boxplot oriented for quantile limit and full/half box == (2021-08-17) ========================
 boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit, mark, col, name, xlab, ylab, ...) {
   if (cut == TRUE) {
     for (i in seq(nrow(tnL))) {
@@ -1360,16 +1360,16 @@ boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit,
                  mutate(pch = case_when(y >= c1[i] & y <= c5[i] ~ 21, TRUE ~ 4)) %>%
                  mutate(col = case_when(pch == 21 ~ colTr.(bg_markL[[i]], 0.55), TRUE ~ colTr.('grey13', 0.8))) %>%
                  mutate(bg = bg_markL[[i]]) %>%
-                 filter(!is.na(y))
+                 dplyr::filter(!is.na(y))
 
       if (jit == TRUE) {
         for(ipch in c(21, 4)) {
-          d_strip %>% filter(pch == ipch) %>%
+          d_strip %>% dplyr::filter(pch == ipch) %>%
           {stripchart(.$y, at = .$x[1] +AT, vertical = T, method = 'jitter', jitter = jitW, add = T, lwd = 0.35, cex = CX,
                      col = .$col, bg = .$bg, pch = ipch)}
         }
       } else {
-        Yout <- d_strip %>% filter(y < c1[i] | y > c5[i])
+        Yout <- d_strip %>% dplyr::filter(y < c1[i] | y > c5[i])
         if (nrow(Yout) != 0) points(Yout$x, Yout$y, lwd = 0.3, cex = CX)
       }
     }
@@ -1498,7 +1498,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
 
   ## picking for selection is allowed only when factor column is one
   if (length(tab_col) == 1 && !is.null(sel)) {
-    dL[[1]] <- dL[[1]][sel, ] %>% filter(tab_col %>% is.null(.) | is.na(.) %>% `!`) %>%
+    dL[[1]] <- dL[[1]][sel, ] %>% dplyr::filter(tab_col %>% is.null(.) | is.na(.) %>% `!`) %>%
                {if (nrow(.) == 0) stop('All the selected numbers of the factors are wrong...\n\n', call. = F) else .}
   }
 
@@ -1796,7 +1796,7 @@ mat2. <- function(dt, xlim = NA, ylim = NA, xlab = '', ylab = '', ...) {  # matp
 clean0. <- function(y, ...) y %>% {case_when(. %in% c(NA, NaN, -Inf, Inf) ~ 0, TRUE ~ .)}  # clean0.(c(1:3, NA, NaN, Inf, -Inf))
 clean1. <- function(d, ...) {
   d <- d %>% rowid_to_column('iD')
-  clean_row <- d %>% select_if(~ is.numeric(.)) %>% filter(rowSums(is.na(.)) == 0, rowSums(.) > -Inf, rowSums(.) < Inf) %>% .[['iD']]
+  clean_row <- d %>% select_if(~ is.numeric(.)) %>% dplyr::filter(rowSums(is.na(.)) == 0, rowSums(.) > -Inf, rowSums(.) < Inf) %>% .[['iD']]
   return(d[clean_row, ] %>% dplyr::select(!'iD'))
 }
 
