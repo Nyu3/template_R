@@ -640,7 +640,10 @@ choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, ...) {
       if (one == TRUE && length(num) == 1 || one == FALSE && length(num) >= 1) break
     }
   }
-  cat(iconv('|████████████████████████|\n', to = if_else(Sys.info()['sysname'] == 'windows', 'cp932', 'utf8')))
+  if (Sys.info()['sysname'] == 'windows') {
+    cat(iconv('|████████████████████████|\n', 'utf8', 'cp932'))
+  }
+  cat('|████████████████████████|\n')
   return(if (chr == TRUE) factors[num] else num)  # text or its number
 }  # choice.(LETTERS[1:2], note = 'Blood type', one = T)
 
