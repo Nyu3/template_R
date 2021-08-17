@@ -72,7 +72,7 @@ production_names <- c('Microtrac', 't-hayakawa')
 yourname <- Sys.getenv('USERNAME')
 
 
-## Calling basic script == (2021-03-23) ========================
+## Calling basic script == (2021-08-17) ========================
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R_script', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
