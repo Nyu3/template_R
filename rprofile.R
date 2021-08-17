@@ -90,7 +90,7 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
     eval(parse(text = script), envir = .nya0env)
   }
 
-  if (any(stringr::str_detect(yourname, researcher_names))) {  # for heavy users (Win & JupyterLab)
+  if (any(suppressMessages(stringr::str_detect(yourname, researcher_names)))) {  # for heavy users (Win & JupyterLab)
     purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))
   } else if (yourname %in% production_names) {  # for light & PSD Win-users
     purrr::walk2(c(3,3,3,3), 1:4, ~ get_source(url_no = .x, file_no = .y))
