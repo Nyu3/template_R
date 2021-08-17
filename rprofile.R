@@ -67,7 +67,7 @@ formals(unlist)$use.names <- FALSE
 
 
 ## Access permission names == (2021-08-03) ========================
-researcher_names <- c('y-nishino', '')  # '' is assigned to Mac & Ubuntu
+researcher_names <- c('y-nishino', '', 'c-nakagawa')  # '' is assigned to Mac & Ubuntu
 production_names <- c('Microtrac', 't-hayakawa')
 yourname <- Sys.getenv('USERNAME')
 
