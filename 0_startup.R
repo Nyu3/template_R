@@ -612,7 +612,7 @@ neatChr. <- function(chr, ...) {  # c('nya :: A', 'nya :: B') --> c('A', 'B')
 }
 
 
-## Interactive filter == (2021-08-17) ========================
+## Interactive filter == (2021-08-18) ========================
 choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, ...) {
   ## freqs denotes each N of the factors, chr = T returns text (F returns number)
   factors <- unlist(factors)  # In case of X x 1 tibble
@@ -640,11 +640,9 @@ choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, ...) {
       if (one == TRUE && length(num) == 1 || one == FALSE && length(num) >= 1) break
     }
   }
-  if (Sys.info()['sysname'] == 'windows') {
-    str_c('|', str_dup(stringi::stri_enc_toutf8('█'), 24), '|\n') %>% cat
-  } else {
-    cat('|████████████████████████|\n')
-  }
+  
+  str_c('|', str_dup(stringi::stri_unescape_unicode('\\u2588'), 24), '|\n') %>% cat
+#  if (Sys.info()['sysname'] != 'windows')  cat('|████████████████████████|\n')
   return(if (chr == TRUE) factors[num] else num)  # text or its number
 }  # choice.(LETTERS[1:2], note = 'Blood type', one = T)
 
