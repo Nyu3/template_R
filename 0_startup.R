@@ -641,7 +641,7 @@ choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, ...) {
     }
   }
   if (Sys.info()['sysname'] == 'windows') {
-    str_c('|', str_dup(stringi::stri_enc_toascii('█'), 24), '|\n') %>% cat
+    str_c('|', str_dup(stringi::stri_enc_toutf8('█'), 24), '|\n') %>% cat
   } else {
     cat('|████████████████████████|\n')
   }
