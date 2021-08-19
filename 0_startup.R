@@ -640,9 +640,8 @@ choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, ...) {
       if (one == TRUE && length(num) == 1 || one == FALSE && length(num) >= 1) break
     }
   }
-  
   str_c('|', str_dup(stringi::stri_unescape_unicode('\\u2588'), 24), '|\n') %>% cat
-#  if (Sys.info()['sysname'] != 'windows')  cat('|████████████████████████|\n')
+# if (Sys.info()['sysname'] != 'windows')  cat('|████████████████████████|\n')
   return(if (chr == TRUE) factors[num] else num)  # text or its number
 }  # choice.(LETTERS[1:2], note = 'Blood type', one = T)
 
