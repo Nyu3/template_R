@@ -775,12 +775,16 @@ legeX. <- function(legePos_x, ...) par('usr')[1] +diff(par('usr')[1:2]) *legePos
 legeY. <- function(legePos_y, ...) par('usr')[3] +diff(par('usr')[3:4]) *legePos_y
 
 
-## Easy legend == (2021-08-13) ========================
+## Easy legend == (2021-08-18) ========================
 legend2. <- function(name, legePos = NA, col = NA, lty = NA, cex = NA, int = NA, ...) {
   query_lib.('stringi')
   par(family = jL.(name))
-  chr_len <- str_split(name, '\n') %>% map_dbl(~ stringi::stri_numbytes(.) %>% max) %>% max  # Count including multi bytes char and space
-  if (is.na(cex)) cex <- 0.9 -chr_len /100
+  chr_len <- 
+    replace_na(name, '') %>%
+    str_split('\n') %>%
+    map_dbl(~ stringi::stri_numbytes(.) %>% max) %>%
+    max(.)  # Count including multi bytes char and space
+  if (is.na(cex)) cex <- 0.9 +log10(1 -chr_len /100)
   if (is.na(int)) int <- -6 *cex ^3 +10 *cex ^2 -6 *cex +2.8
   if (anyNA(col)) col <- color2.()
   if (anyNA(lty)) lty <- 1
