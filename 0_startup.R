@@ -613,7 +613,7 @@ neatChr. <- function(chr, ...) {  # c('nya :: A', 'nya :: B') --> c('A', 'B')
 
 
 ## Interactive filter == (2021-08-18) ========================
-choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, ...) {
+choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, fulltext = F, ...) {
   ## freqs denotes each N of the factors, chr = T returns text (F returns number)
   factors <- unlist(factors)  # In case of X x 1 tibble
   if (length(factors) == 0) return(NULL)
@@ -633,7 +633,11 @@ choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, ...) {
     cat('\n    Choose multi-No. from below.\n    Multi-No. is OK like 1 2 3 or 1,2,3 or 1.2.3;\n\n', tenta)
   }
   repeat {
-    num <- readline(str_c('    Which No.', if_else(is.null(note), '', str_c(' as \"', note, '\"')), ' ?\n>>> '))
+    if (fulltext == TRUE) {
+      num <- readline(str_c('    ', note, '\n>>> '))
+    } else {
+      num <- readline(str_c('    Which No.', if_else(is.null(note), '', str_c(' as \"', note, '\"')), ' ?\n>>> '))
+    }
     num <- gsub(',|\\.|\\*|/|:|;| |  ', '_', num) %>% str_split('_') %>% unlist() %>% {.[!. %in% '']} %>%
            correctChr.() %>% as.numeric() %>% sort() %>% unique() %>% .[!is.na(.)]  # To gurantee your input as numeric
     if ((num >= 1 & num <= length(factors)) %>% all()) {  # This if () restricts proper range and prohibit minus or oversized.
