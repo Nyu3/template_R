@@ -49,7 +49,7 @@ setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
 })
 
 
-## Rewrite other parameters of defalut values == (2021-03-23) ========================
+## Rewrite other parameters of defalut values == (2021-08-17) ========================
 ## https://stackoverflow.com/questions/39620669/source-script-to-separate-environment-in-r-not-the-global-environment
 ## https://coolbutuseless.bitbucket.io/2018/04/11/changing-the-default-arguments-to-a-function/
 .nya0env <- new.env()  # Naming initial dot works out not to show your own functions on the gloval environment
