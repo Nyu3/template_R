@@ -378,8 +378,8 @@ xyL2. <- function(d, fix = 1, ...) {  # In case of [x, y1, y2, ...] --> [x, y1],
 }  # xyL2.(iris, 5) %>% walk(., box2.)
 
 
-## Transform [ID1,ID2,y] <--> [ID1, y1.ID2, y2.ID2, y3.ID2, ...] == (2021-08-23) ========================
-t2. <- function(d, ...) {  # ID: crush, y: vacuum
+## Transform [ID1,ID2,y] <--> [ID1, y1.ID2, y2.ID2, y3.ID2, ...] == (2021-08-24) ========================
+id2y. <- function(d, ...) {  # ID: crush, y: vacuum
   tab_col <- map_lgl(d, ~ is.character(.) | is.factor(.)) %>% names(d)[.]
   num_col <- map_lgl(d, ~ is.numeric(.)) %>% names(d)[.]
 
@@ -394,7 +394,7 @@ t2. <- function(d, ...) {  # ID: crush, y: vacuum
            select(!nya)
     return(out)
   }
-}  # t2.(diamonds[1:3] %>% slice_sample(n = 1000)) %>% box2.
+}  # id2y.(diamonds[1:3] %>% sample_n(1000)) %>% box2.
 
 
 ## Split ID data into list in a tidy way == (2021-06-23) ========================
@@ -433,8 +433,8 @@ case2. <- function(d, div = NULL, percentage = T, ...) {
 }  # case2.(iris[3], div = 3) %>% box2.()
 
 
-## Change a data into time cases; year, month, min, sec, ... , or time length == (2021-06-17) ========================
-timeChanger. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, y1, y2, ...]
+## Change a data into time cases; year, month, min, sec, ... , or time length == (2021-08-24) ========================
+time2. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, y1, y2, ...]
   query_lib.(c('naturalsort', 'lubridate'))
   if (map_lgl(d, is_time.) %>% sum == 0) return(d)
   time_col <- names(d)[map_lgl(d, is_time.)]
@@ -461,7 +461,9 @@ timeChanger. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, 
     }
     ## time length calculation
     if (origin == TRUE) {
-      d <- d %>% mutate(!!time_col[i] := {min(get(time_col[i])) %--% get(time_col[i])} %>% time_length(., unit = div)) %>%
+      d <- d %>%
+           mutate(!!time_col[i] := {min(get(time_col[i])) %--% get(time_col[i])} %>%
+           time_length(., unit = div)) %>%
            rename('{time_col[i]} ({div})' := time_col[i])
       if (i == length(time_col)) return(d)
     } else {  # Note: if the data type is <date>, hour/min/sec will be 0
@@ -484,7 +486,7 @@ timeChanger. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, 
     }
   }
   return(d)
-}  # timeChanger.(economics)　　timeChanger.(economics, div = 'day', origin = T)
+}  # time2.(economics)　time2.(economics, div = 'day', origin = T)
 
 
 ## HTML table == (2020-09-17) ========================
@@ -1430,18 +1432,26 @@ boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit,
   }
   ## Show values
   textFun <- function(...) {
-    Digit <- if (!is.integer(digit) && !is.null(digit))
+    Digit <- if (!is.integer(digit) && !is.null(digit)) {
                digit
-             else {
+             } else {
         	   unlist(yL) %>%
                delta.(.) %>%
-        	   {if (. < 1 && all(median.(yL) < 1)) 3 else whichSize.(ref = ., vec = c(50, 5, 1), c(0, 1, 2))}
+        	   {if (. < 1 && all(median.(yL) < 1)) 3 else whichSize.(ref = ., vec = c(50, 5, 1), mirror = c(0, 1, 2))}
         	 }
     tCex <- whichSize.(ref = length(yL), vec = c(4, 13, 30), mirror = c(0.6, 0.5, 0.4))
     dD  <-  map(yL, quantile, probs = c(0, 0.5, 1), na.rm = T) %>% data.frame(.)
-    for (i in seq_along (dD)) {
-      if (abs(round(dD[1, i] -dD[2, i], Digit +1)) < 0.7 *10 ^(-Digit)) dD[1, i] <- NA
-      if (abs(round(dD[3, i] -dD[2, i], Digit +1)) < 0.7 *10 ^(-Digit)) dD[3, i] <- NA
+    for (i in seq_along(dD)) {
+      if (!is.na(dD[1, i])) {
+        if (round(dD[2, i] -dD[1, i], Digit +1) < 0.7 *10 ^(-Digit)) {
+          dD[1, i] <- NA
+        }
+      }
+      if (!is.na(dD[3, i])) {
+        if (round(dD[3, i] -dD[2, i], Digit +1) < 0.7 *10 ^(-Digit)) {
+          dD[3, i] <- NA
+        }
+      }
     }
     # haloText.(xPos +AT, dD[2, ], labels = sprintf(str_c('%.', Digit, 'f'), dD[2, ]), cex = tCex *1.5)  # Too slow ...
     text(xPos +AT, dD[2, ], labels = sprintf(str_c('%.', Digit, 'f'), dD[2, ]), col = 'white', cex = tCex *1.5 *1.05)  # Alternative
@@ -1500,7 +1510,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
                   digit = NULL, div = NULL, mark = NULL, PDF = T, ...) {
   ## d <- sample_n(diamonds[-8:-10], 200)
   ## Select data
-  d <- timeChanger.(d, div)
+  d <- time2.(d, div)
   if (!is.null(mark) && mark %in% names(d)) {
     d_mark <- d[mark]
     d <- d %>% select(-all_of(mark))
@@ -1524,7 +1534,8 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
   } else {  # [ID1, ID2, ... , y1, y2, ...]
     dL <- list_along(tab_col) %>% set_names(tab_col)
     for (i in seq_along(tab_col)) {  # separate the data into tab(i) and num(all)
-      dL[[i]] <- d %>% group_nest(across(tab_col[i])) %>%
+      dL[[i]] <- d %>%
+                 group_nest(across(tab_col[i])) %>%
                  mutate(NUMs = map(data, ~ select(., contains(c(num_col, mark))))) %>%
                  select(!data) %>% {
                    if (pareto == F && ord == T) {
@@ -1544,7 +1555,8 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
 
   ## picking for selection is allowed only when factor column is one
   if (length(tab_col) == 1 && !is.null(sel)) {
-    dL[[1]] <- dL[[1]][sel, ] %>% dplyr::filter(tab_col %>% is.null(.) | is.na(.) %>% `!`) %>%
+    dL[[1]] <- dL[[1]][sel, ] %>%
+               dplyr::filter(tab_col %>% is.null(.) | is.na(.) %>% `!`) %>%
                {if (nrow(.) == 0) stop('All the selected numbers of the factors are wrong...\n\n', call. = F) else .}
   }
 
@@ -1556,7 +1568,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
     col2 <- {if(is.null(col)) NULL else if (length(col) > 1) col else 0} %>%
             color2.(color = ., len = nrow(dL[[i]])) %>% set_names(tmp[[1]])
     if (!is.null(name_marking) && !is.null(col_marking)) {
-      for (i in seq_along(col_marking)) col2[which(tenta[[1]] %in% name_marking[[i]])] <- col_marking[[i]]
+      for (ii in seq_along(col_marking)) col2[which(tmp[[1]] %in% name_marking[[ii]])] <- col_marking[[ii]]
     }
     ## targeting
     for (j in seq_along(num_col)) {

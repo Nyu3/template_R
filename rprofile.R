@@ -119,7 +119,7 @@ if (Sys.info()['sysname'] == 'Windows') {
 }
 
 
-## Hint message & delete objects == (2021-08-23) ========================
+## Hint message & delete objects == (2021-08-24) ========================
 tips <- "
    plt.(iris[4:5])
    plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
@@ -129,9 +129,9 @@ tips <- "
    corp.(iris[3:4])
    box2.(iris, rot = 20, pareto = T, cut = T)
    box2.(diamonds[1:1000, 1:3], mark = 'color')
-   box2.(t2.(diamonds[1:1000, 1:3]))
+   box2.(id2y.(diamonds[1:1000, 1:3]))
    box2.(case2.(us_rent_income[5], div = 100), col = 0)
-   box2.(timeChanger.(economics[1:50, ], div = 'year'))
+   box2.(time2.(economics[1:50, ], div = 'year'))
    barp.(iris, xyChange = T, rot = 25)
    barp.(iris, cum = T, xyChange = T)
    sp.(iris, col = 3)
