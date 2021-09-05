@@ -33,41 +33,56 @@ query_lib. <- function(package_name, ...) {
 skipMess. <- function(x) suppressPackageStartupMessages(suppressWarnings(suppressMessages(invisible(x))))
 
 
-## Path control == (2021-03-06) ========================
+## Path control == (2021-09-03) ========================
 setwd. <- function(...) {  # Needed to copy a file path on the console in advance
   chr <- pp.()
   if (Sys.getenv('OS') == '') {  # for Mac & Ubuntu
-    if (str_detect(chr, pattern = 'csv$|xls$|xlsx$')) {
-      chr <- dirname(.)
-    }
-    setwd(chr)
+    chr2 <- if (str_detect(chr, pattern = 'csv$|xls$|xlsx$')) dirname(chr) else chr
+    setwd(chr2)
   } else {
     if (!str_detect(chr, pattern = '\\\\')) stop('Not available file path...\n\n', call. = F)
-    gsub('\\\\', '\\/', chr) %>% setwd(.)
+    chr2 <- gsub('\\\\', '\\/', chr)
+    setwd(chr2)
   }
 }  # setwd.()
 
 
-## Lightly vroom() for csv == (2021-08-07) ========================
-vroom. <- function(file = NULL, col_names = T, skip = 0, n_max = Inf, ...) {
+## Lightly vroom() for csv == (2021-09-02) ========================
+vroom. <- function(file = NULL, col_names = T, skip = 0, n_max = Inf, delim = ',', ...) {
   query_lib.(c('hablar', 'vroom'))
   File <<- file %||% {  # You may use the file name later in case of using write.()
-           dir(pattern = 'csv|CSV') %>% {.[!str_detect(., '\\$')]} %>% choice.(., note = 'Target File')}
-  enc <- skipMess.(readr::guess_encoding(File[1])) %>% .[[1,1]] %>% {
-    if (str_detect(., 'ASCII|Shift_JIS|windows')) 'cp932' else if (str_detect(., 'UTF-8')) 'utf8' else 'unknown'
-  }
+           dir(pattern = 'csv|CSV') %>% {.[!str_detect(., '\\$')]} %>% choice.(., note = 'Target File(s)')}
+  enc <- map_chr(File, ~ readr::guess_encoding(.) %>%
+                     .[[1,1]] %>%
+                     {case_when(str_detect(., 'ASCII|Shift_JIS|windows') ~ 'cp932', str_detect(., 'UTF-8') ~ 'utf8', TRUE ~ 'unknown')}
+         )
   if (length(File) == 1) {
-    out <- skipMess.(vroom::vroom(File[1], locale = locale(encoding = enc), col_names = col_names, skip = skip, n_max = n_max))
+    out <- skipMess.(vroom::vroom(File, locale = locale(encoding = enc), col_names = col_names, skip = skip, n_max = n_max, delim = delim))
   } else {
-    out <- skipMess.(
-             map_dfr(file, ~ skipMess.(vroom::vroom(., locale = locale(encoding = enc), col_types = cols(.default = 'c'))))
-           ) %>% hablar::retype()
+    dL <- map2(File, enc, ~ skipMess.(vroom::vroom(.x, locale = locale(encoding = .y), col_types = cols(.default = 'c'), delim = delim)) %>%
+                            mutate(file = .x) %>% relocate(file) %>% hablar::retype()
+          ) %>% {.[map_dbl(., nrow) > 0]}
+
+    ## bind brother sheets
+    tmp <- matrix(NA, length(dL), length(dL))
+    for (i in seq_along(dL)) {  # setequal() needs to fix the criterion, so you must seek every criteria by matrix
+      tmp[i, ] <- map(dL, names) %>% map2_lgl(.[i], ., ~ setequal(.x, .y))
+    }
+    groupL <- which(colSums(tmp) != 1)
+    aloneL <- which(colSums(tmp) == 1)
+    if (length(groupL) != 0 && length(aloneL) != 0) {  # some lists contains brother
+      out <- c(dL[groupL] %>% bind_rows %>% list, dL[aloneL])
+    } else if (length(groupL) != 0 && length(aloneL) == 0) {  # all lists are brother; return a tibble
+      out <- dL[groupL] %>% bind_rows
+    } else if (length(groupL) == 0 && length(aloneL) != 0) {  # every list is a stranger
+      out <- dL
+    }
   }
   return(out)
 }
 
 
-## Reading data == (2021-08-21) ========================
+## Reading data == (2021-08-30) ========================
 getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, filetype = NULL, ...) {
   query_lib.('hablar')
   if (!is.null(path)) {
@@ -86,28 +101,44 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
                if (length(.) == 0) {
                  stop('No file available...\n\n', call. = F)
                } else {
-                 choice.(., note = 'Target File')
+                 choice.(., note = 'Target File(s)')
                }
              }
            }
   if (length(File) == 0) stop('No data file in this directory...\n\n', call. = F)
-
-  if (str_detect(File, pattern = 'csv|CSV') %>% all()) {
+  if (sum(all(str_detect(File, 'csv|CSV')), all(str_detect(File, 'xls|xlsx'))) == 0) stop('Choose excel or csv file type only...\n\n', call. = F)
+  if (str_detect(File, pattern = 'csv|CSV') %>% all) {
     d <- vroom.(File)
-  } else if (str_detect(File, pattern = 'xls|xlsx')) {
-    seqs <- excel_sheets(File)  # To mutate(sheet = ~), map_dfr() is not used
-    d_excel <- map(seqs, ~ skipMess.(read_excel(File, sheet = ., col_names = T, skip = 0, n_max = Inf))) %>% set_names(seqs)  # list
-    same_set <- map(d_excel, ~ names(.)) %>% map2_lgl(.[1], ., ~ setequal(.x, .y)) %>% all()
-    ## bind all sheets without nrow = 0 into a tibble
-    if (same_set == TRUE) {  # a tibble (every sheet has the same data structure)
-      d <- map2(d_excel, names(d_excel), ~ mutate(.x, sheet = .y) %>% relocate(sheet)) %>% {.[map_dbl(., nrow) > 0]} %>% bind_rows
-    } else {
-      d <- d[map_dbl(d, nrow) > 0]  # a list (zero row data is diminished)
+  } else if (str_detect(File, pattern = 'xls|xlsx') %>% all) {
+    sht <- map(File, excel_sheets) %>% set_names(File)  # To mutate(sheet = ~), map_dfr() is not used
+    dL <- list()
+    for(i in seq_along(File)) {
+      dL <- map2(File[i], sht[[i]], ~ read_excel(.x, sheet = .y) %>%
+                                      mutate(file = .x, sheet = .y) %>%
+                                      relocate(file, sheet)
+                 ) %>% {.[map_dbl(., nrow) > 0]} %>%
+            c(dL, .)
+    }
+    if (length(File) == 1) dL <- map(dL, ~ select(., !file))
+
+    ## bind brother sheets
+    tmp <- matrix(NA, length(dL), length(dL))
+    for (i in seq_along(dL)) {  # setequal() needs to fix the criterion, so you must seek every criteria by matrix
+      tmp[i, ] <- map(dL, names) %>% map2_lgl(.[i], ., ~ setequal(.x, .y))
+    }
+    groupL <- which(colSums(tmp) != 1)
+    aloneL <- which(colSums(tmp) == 1)
+    if (length(groupL) != 0 && length(aloneL) != 0) {  # some lists contains brother
+      d <- c(dL[groupL] %>% bind_rows %>% list, dL[aloneL])
+    } else if (length(groupL) != 0 && length(aloneL) == 0) {  # all lists are brother; return a tibble
+      d <- dL[groupL] %>% bind_rows
+    } else if (length(groupL) == 0 && length(aloneL) != 0) {  # every list is a stranger
+      d <- dL
     }
   }
   ## cleaning
-  clean_data <- function(x) {
-    out <- x %>%
+  clean_data <- function(d) {
+    out <- d %>%
            dplyr::filter(rowSums(is.na(.)) != ncol(.)) %>%
            hablar::retype() %>%
            dt2time.(., timeSort, timeFactor) %>%
@@ -285,17 +316,17 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
 }  # END of pp.()
 
 
-## Transform list data to tibble == (2021-08-14) ========================
+## Transform list data to tibble == (2021-08-27) ========================
 list2tibble. <- function(dL, ord = F, ...) {
   query_lib.('naturalsort')
   if (is.data.frame(dL)) return(as_tibble(dL))  # safety net; dL is already tibble
   dL <- dL[!sapply(dL, is.null)]  # delete NULL
 
-  if (map.(dL, ~ class(.)) %>% {!'data.frame' %in% .}) {  # Each nested data is atomic
+  if (map.(dL, ~ class(.)) %>% {!'data.frame' %in% .}) {  # Each nested data is atomic ('numeric')
     tmp <- which(length.(dL) == 0)  # In case of logical(0)
     if(length(tmp) != 0) dL[tmp] <- NA
-    dL <- map2(dL, seq_along(dL), ~ enframe(.x) %>% .[, -1] %>% set_names(str_c('X', .y)))  # In case that dL has vectors
-    if (is.null(names(dL))) names(dL) <- str_c('V', seq_along(dL))  # Note: dL is all consited of tibble for now
+    if (is.null(names(dL))) names(dL) <- str_c('X', seq_along(dL))
+    dL <- map2(dL, names(dL), ~ enframe(.x) %>% .[, -1] %>% set_names(.y))
   } else {
     dL <- map(dL, ~ as_tibble(., .name_repair = 'minimal'))  # In case that the list has a data.frame (x = ... , y = ...)
     if (is.null(names(dL))) names(dL) <- str_c('L', seq_along(dL))  # Note: dL is all consited of tibble for now
@@ -509,7 +540,7 @@ html. <- function(d, ...) {
 }
 
 
-## Quick check for basic statistics == (2021-06-30) ========================
+## Quick check for basic statistics == (2021-09-03) ========================
 base_stats. <- function(d, ...) {
   stats_names <- c('Median', 'Avg', 'SD', 'Max', 'Max without outliers', 'Min without outliers', 'Min', 'Range', 'Total',
                    'Skew', 'Kurtosis', 'Number')
@@ -529,9 +560,9 @@ base_stats. <- function(d, ...) {
       out <- d %>% mini_stats()
     }
   } else if (is.atomic(d)) {
-    Stats <- c(median.(d), mean.(d), sd.(d), max.(d), max2.(d), min2.(d), min.(d), delta.(d), sum.(d), length.(d))
+    Stats <- d %>% {c(median.(.), mean.(.), sd.(.), max.(.), max2.(.), min2.(.), min.(.), delta.(.), sum.(.), skew.(.), kurt.(.), length.(.))}
     vecN <- substitute(d) %>% as.character(.) %>% {if (length(.) == 1) . else .[2]}  # Confirm; substitute(iris [[1]]) %>% as.character
-    out <- bind_cols(Basic = statsN, x = Stats) %>% set_names(c('Basic', vecN))
+    out <- bind_cols(Basic = stats_names, x = Stats) %>% set_names(c('Basic', vecN))
   }
   return(out)
 }  # base_stats.(iris) %>% html.()
@@ -598,15 +629,14 @@ zenk. <- function(chr, ...) {
 }
 
 
-## Reshape text by cutting space & common characters == (2020-10-04) ========================
+## Reshape text by cutting space & common characters == (2021-08-29) ========================
 correctChr. <- function(chr, ...) {
   if (str_detect(chr, '[:alpha:]') %>% any.(.) %>% `!`) {
     if (str_detect(chr, '%') %>% any.(.)) chr <- as.vector(chr) %>% parse_number(.) %>% {. /100}  # '12.3%'
     if (str_detect(chr, ',') %>% any.(.)) chr <- as.vector(chr) %>% gsub(',', '', .) %>% parse_number(.)  # "123,456,789", or "\1,000"
   }
   chr[chr %in% ''] <- NA  # str_detect(chr, '') doesn't work well...
-  chr_uni <- unique(chr)
-  for(i in seq_along(chr_uni)) chr[chr %in% chr_uni[i]] <- zenk.(chr_uni[i])  # very faster
+  chr <- zenk.(chr)
   return(chr)
 }
 
@@ -860,25 +890,25 @@ save2. <- function(name = NULL, wh = c(4.5, 3.3), ...) {
 }
 
 
-## Write list data to csv/xlsx file == (2021-08-17) ========================
-write. <- function(d, name = NULL, enc = NULL, ...) {
-  if ('list' %in% class(d)) d <- list2tibble.(d)
+## Write list data to csv/xlsx file == (2021-09-03) ========================
+write. <- function(.d, name = NULL, enc = NULL, ...) {
+  if ('list' %in% class(.d)) .d <- list2tibble.(.d)
   name <- {name %||% today2.()} %>% {if (str_detect(., '\\.csv')) . else str_c (., '.csv')}
   if (!is.null(enc)) {
     enc <- if (str_detect(enc, 'c|cp|CP|cp932|CP932|cp-932')) 'cp932' else 'utf8'
   }
-  write.csv(d, name, row.names = F, na = '', fileEncoding = enc %||% ifelse(Sys.info()['sysname'] == 'windows', 'cp932', 'utf8'))
+  write.csv(.d, name, row.names = F, na = '', fileEncoding = enc %||% ifelse(Sys.info()['sysname'] == 'windows', 'cp932', 'utf8'))
 }
-write2. <- function(d, name = NULL, sheet = NULL, ...) {
+write2. <- function(.d, name = NULL, sheet = NULL, ...) {
   query_lib.('openxlsx')
-  dL <- if (!'list' %in% class(d)) list(d) else d
+  dL <- if (!'list' %in% class(.d)) list(.d) else .d
   if (is.null(names(dL))) names(dL) <- str_c('#', seq_along(dL))
   if (!is.null(sheet)) names(dL) <- sheet
   openxlsx::write.xlsx(dL, file = str_c(name %||% today2.(), '.xlsx'), overwrite = T)
 }  # write2.(list(iris, mtcars, chickwts, quakes))
-write3. <- function(d, name = NULL, sheet = NULL, ...) {
+write3. <- function(.d, name = NULL, sheet = NULL, ...) {
   query_lib.('writexl')
-  dL <- if (!'list' %in% class(d)) list(d) else d
+  dL <- if (!'list' %in% class(.d)) list(.d) else .d
   if (is.null(names(dL))) names(dL) <- str_c('#', seq_along(dL))
   if (!is.null(sheet)) names(dL) <- sheet
   writexl::write_xlsx(dL, path = str_c(name %||% today2.(), '.xlsx'))
@@ -989,7 +1019,7 @@ plt. <- function(d, ord = F, lty = NULL, lwd = NULL, xlab = '', ylab = '', col =
 }  # plt.(iris[4:5])  plt.(iris[-5], legePos = c(0.2, 0.99))  plt.(psd[[1]])  plt.(psd[2:3], ylim = c(0, NA))
 
 
-## Kernel Density Estimation plot == (2021-08-23) ========================
+## Kernel Density Estimation plot == (2021-08-30) ========================
 dens. <- function(d, bw = 1, ord = F, lty = NULL, lwd = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = c(0, NA),
                   legePos = NULL, name = NULL, mar = par('mar'), grid = F, cum = F, ...) {
   query_lib.('logKDE')
@@ -1025,17 +1055,14 @@ dens. <- function(d, bw = 1, ord = F, lty = NULL, lwd = NULL, xlab = '', ylab = 
     }
     return(tibble(x = Dens$x, y = Dens$y))
   }  # END of kde_xy()
-  dL <- dLformer.(d, ord) %>% map(., ~ kde_xy(.)) %>% {if (cum) map(., ~ tibble(x = .[[1]], y = cumP0.(.))) else .}
+  dL <- dLformer.(d, ord) %>% map(., kde_xy) %>% {if (cum == TRUE) map(., cdf.) else .}
       # stop('Only available for [ID,y] or [y1,y2, ...]', call. = F)
 # if (length(xlim) == 2 && !is.na(xlim[1])) xlim <- NA  # the graph is hard to see if the x limit is set
   plt.(dL, ord, lty, lwd, xlab, ylab, col, xlim, ylim, legePos, name, mar, grid)
 
-  ## P-th pecentile
-  dL_cum <- map(dL, function(nya) cumP.(nya$y) %>% tibble(x = nya$x, y = .))
-  out <- map(dL_cum, function(nya) {
-           whichNear.(nya$y, c(0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9) /100) %>% nya$x[.]
-         }) %>%
-         bind_cols(Xth_Percentile = str_c('X', c(0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9)), .)
+  ## p-th pecentile
+  out <- map(dL, ~ cdf.(., p = c(0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9) /100)) %>%
+         bind_cols(percentile = str_c('p', c(0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9)), .)
   print(out)
 }  # dens.(iris[4:5], cum = T)  # [ID, y] is OK
 
@@ -1238,8 +1265,8 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
   def.(c('x', 'y'), list(d[[1]], d[[2]]))
 
   ## 'elliplot'::ellipseplot(iris[c(5, 1)], iris[c(5, 2)])
-  mdl0 <- robustbase::lmrob(y ~x -1, na.action = na.exclude, setting = 'KS2014')  # 'robust'::lmRob(y ~ x -1, na.action = na.exclude)
-  mdl1 <- robustbase::lmrob(y ~x +1, na.action = na.exclude, setting = 'KS2014')  # 'robust'::lmRob(y ~ x +1, na.action = na.exclude)
+  mdl0 <- robustbase::lmrob(y ~x -1, na.action = na.exclude, setting = 'KS2014')  # robust::lmRob(y ~ x -1, na.action = na.exclude)
+  mdl1 <- robustbase::lmrob(y ~x +1, na.action = na.exclude, setting = 'KS2014')  # robust::lmRob(y ~ x +1, na.action = na.exclude)
   mdlNum <- map.(list(mdl0, mdl1), ~ summary(.) %>% .$sigma) %>% which.min(.)
   mdl <- list(mdl0, mdl1)[[mdlNum]]  # Choose better
   Coef <- list(c(0, coef(mdl0)), coef(mdl1))[[mdlNum]] %>% set_names(NULL)
@@ -1360,7 +1387,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
 }  # corp.(iris[c(1, 4)], x_lr = c(5, 7))  corp.(iris[c(1, 4)], li = T, x_lr = c(5, 7))
 
 
-## Boxplot oriented for quantile limit and full/half box == (2021-08-23) ========================
+## Boxplot oriented for quantile limit and full/half box == (2021-09-02) ========================
 boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit, mark, col, name, xlab, ylab, ...) {
   if (cut == TRUE) {
     for (i in seq(nrow(tnL))) {
@@ -1376,7 +1403,7 @@ boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit,
   if (type != 'full' && type != 'f') def.(c('AT', 'jitW', 'leftW', 'rightW'), list(wid /2, wid /2, wid, 0))
 
   ## plot & color data
-  yL <- tnL[[2]] %>% set_names(tnL[[1]])
+  yL <- tnL[[2]] %>% map(~ .[!is.na(.)]) %>% set_names(tnL[[1]])
   if (!is.null(mark)) {
     markL <- tnL[[3]] %>% set_names(tnL[[1]])
     lvs <- markL %>% unlist() %>% unique()
@@ -1390,11 +1417,11 @@ boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit,
 
   ## fivenum() is agreed with quantile() if vec is odd, but if even, fivenum() is a bit wider than quantile()
   ## Moreover, some cases make wrong whiskers that have no points more or less than 95th or 5th by quantile()
-  c1 <- map_dbl(yL, function(x) {fivenum(x)[2] -1.5 *IQR(x, na.rm = T)} %>% c(., min(x)) %>% max())
+  c1 <- map_dbl(yL, function(x) {fivenum(x)[2] -1.5 *IQR(x)} %>% c(., min(x)) %>% max())
   c2 <- map_dbl(yL, ~ fivenum(.)[2])
   c3 <- map_dbl(yL, ~ fivenum(.)[3])
   c4 <- map_dbl(yL, ~ fivenum(.)[4])
-  c5 <- map_dbl(yL, function(x) {fivenum(x)[4] +1.5 *IQR(x, na.rm = T)} %>% c(., max(x)) %>% min())
+  c5 <- map_dbl(yL, function(x) {fivenum(x)[4] +1.5 *IQR(x)} %>% c(., max(x)) %>% min())
 
   ## for loop is needed because outlier isn't always just one ...
   points_outliers <- function(...) {
@@ -1510,6 +1537,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
                   digit = NULL, div = NULL, mark = NULL, PDF = T, ...) {
   ## d <- sample_n(diamonds[-8:-10], 200)
   ## Select data
+  if (is.atomic(d)) d <- as_tibble(d) %>% set_names('x')
   d <- time2.(d, div)
   if (!is.null(mark) && mark %in% names(d)) {
     d_mark <- d[mark]
@@ -1860,6 +1888,18 @@ clean1. <- function(d, ...) {
   return(d[clean_row, ] %>% dplyr::select(!'iD'))
 }
 
+## Delete NA == (2021-09-03) ========================
+na0. <- function(d, ...) {
+  if ('data.frame' %in% class(d)) {
+    out <- d %>% filter(rowSums(!is.na(.)) == ncol(.)) %>% select_if(colSums(is.na(.)) != nrow(.))
+  } else if (is.atomic(d)) {
+    out <- d[!is.na(d)]
+  } else {
+    out <- d
+  }
+  return(out)
+}
+
 ## Multiple definition == (2019-01-10) ========================
 def. <- function(defnames, values) for (i in seq_along(defnames)) assign(defnames[i], values[[i]], envir = parent.frame())
 # def.(c('cat', 'run'), list(35, 1:23))
@@ -2081,11 +2121,13 @@ area_poly. <- function(x, y, ...) {
   return(calc)
 }
 
+
 ## Area closed by curve & x axis (oriented for pdf curve) == (2020-06-05) ========================
 area. <- function(x = NULL, y = NULL, ...) {
   if (is.list(x) && is.null(y)) def.(c('x', 'y'), list(x[[1]], x[[2]]))
   sum(0.5 * diff(x) *(y[-1] +y[-length(y)])) %>% return(.)
 }  # area.(psd[2:3])
+
 
 ## Partial Area (Only applicable for PDF; whose cuve is surrounding x axis) == (2020-01-23) ========================
 area_part. <- function(d, LRx, ...) {  # dt is PDF, LRx is partial range of x
@@ -2095,13 +2137,20 @@ area_part. <- function(d, LRx, ...) {  # dt is PDF, LRx is partial range of x
   return(calc)
 }
 
-## Cumulative probablity denstiy == (2020-07-02) ========================
-cumP0. <- function(x, y, ...) {
+
+## Cumulative denstiy function == (2021-08-30) ========================
+## Note: this is the function for a PDF, not for a vector like quantile(iris[[1]], 0.5)
+## Microtrac D50 of psd[2:3] was 9.99006 (almost near peak)
+## ~ cdf.(psd[2:3], p = 0.36) ~ psd[[2]][whichNear.(vec = cumsum(psd[[3]]) /sum(psd[[3]]), ref = 0.37)]
+cdf. <- function(x, y = NULL, p = NULL, ...) {
   if (is.data.frame(x) && ncol(x) == 2) def.(c('x', 'y'), list(x[[1]], x[[2]]))
-  out <- cumsum(0.5 *diff(x) *(y[-1] +y[-length(y)])) %>% c(0, .)  # Note: cumP0.() is over 0.6%...
+  y_cum <- cumsum(0.5 *diff(x) *(y[-1] +y[-length(y)])) %>% c(0, .)
+  out <- tibble(x = x, y = y_cum)
+  if (!is.null(p) && between(p, 0, 1)) {
+    out <- whichNear.(vec = out$y, ref = p) %>% out$x[.]  # return percentile (not quantile!!)
+  }
   return(out)
-}
-cumP. <- function(y, ...) cumsum(y) /sum(y)  # plot(cumP0.(psd[[2]], psd[[3]])-cumP.(psd[[3]]),type = 'l')
+}  # plot(psd[2:3]); abline(v=cdf.(psd[2:3], p=0.5)); par(new=T); plot(cdf.(psd[2:3]), type='l', ann=F, axes=F); axis(4)
 
 
 ## AIC calculation == (2019-05-11) ========================
