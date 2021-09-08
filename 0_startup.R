@@ -47,7 +47,7 @@ setwd. <- function(...) {  # Needed to copy a file path on the console in advanc
 }  # setwd.()
 
 
-## Lightly vroom() for csv == (2021-09-02) ========================
+## Lightly vroom() for csv == (2021-09-06) ========================
 vroom. <- function(file = NULL, col_names = T, skip = 0, n_max = Inf, delim = ',', ...) {
   query_lib.(c('hablar', 'vroom'))
   File <<- file %||% {  # You may use the file name later in case of using write.()
@@ -75,14 +75,14 @@ vroom. <- function(file = NULL, col_names = T, skip = 0, n_max = Inf, delim = ',
     } else if (length(groupL) != 0 && length(aloneL) == 0) {  # all lists are brother; return a tibble
       out <- dL[groupL] %>% bind_rows
     } else if (length(groupL) == 0 && length(aloneL) != 0) {  # every list is a stranger
-      out <- dL
+      out <- if (aloneL == 1) dL[[1]] %>% select(!file) else dL
     }
   }
   return(out)
 }
 
 
-## Reading data == (2021-08-30) ========================
+## Reading data == (2021-09-06) ========================
 getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, filetype = NULL, ...) {
   query_lib.('hablar')
   if (!is.null(path)) {
@@ -115,8 +115,8 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
     for(i in seq_along(File)) {
       dL <- map2(File[i], sht[[i]], ~ read_excel(.x, sheet = .y) %>%
                                       mutate(file = .x, sheet = .y) %>%
-                                      relocate(file, sheet)
-                 ) %>% {.[map_dbl(., nrow) > 0]} %>%
+                                      relocate(file, sheet)) %>%
+            {.[map_dbl(., nrow) > 0]} %>%
             c(dL, .)
     }
     if (length(File) == 1) dL <- map(dL, ~ select(., !file))
@@ -133,7 +133,7 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
     } else if (length(groupL) != 0 && length(aloneL) == 0) {  # all lists are brother; return a tibble
       d <- dL[groupL] %>% bind_rows
     } else if (length(groupL) == 0 && length(aloneL) != 0) {  # every list is a stranger
-      d <- dL
+      d <- if (length(aloneL) == 1) dL[[1]] %>% select(!sheet) else dL
     }
   }
   ## cleaning
