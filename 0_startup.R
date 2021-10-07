@@ -1387,7 +1387,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
 }  # corp.(iris[c(1, 4)], x_lr = c(5, 7))  corp.(iris[c(1, 4)], li = T, x_lr = c(5, 7))
 
 
-## Boxplot oriented for quantile limit and full/half box == (2021-09-02) ========================
+## Boxplot oriented for quantile limit and full/half box == (2021-10-07) ========================
 boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit, mark, col, name, xlab, ylab, ...) {
   if (cut == TRUE) {
     for (i in seq(nrow(tnL))) {
@@ -1538,6 +1538,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
   ## d <- sample_n(diamonds[-8:-10], 200)
   ## Select data
   if (is.atomic(d)) d <- as_tibble(d) %>% set_names('x')
+  d <- na0.(d)
   d <- time2.(d, div)
   if (!is.null(mark) && mark %in% names(d)) {
     d_mark <- d[mark]
