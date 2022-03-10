@@ -119,7 +119,7 @@ if (Sys.info()['sysname'] == 'Windows') {
 }
 
 
-## Hint message & delete objects == (2021-08-24) ========================
+## Hint message & delete objects == (2022-02-14) ========================
 tips <- "
    plt.(iris[4:5])
    plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
@@ -135,7 +135,7 @@ tips <- "
    barp.(iris, xyChange = T, rot = 25)
    barp.(iris, cum = T, xyChange = T)
    sp.(iris, col = 3)
-   base_stats.(iris)
+   stats.(iris)
    pie.(iris[41:120,5], per = T)
    html.(starwars)
 ...\n"
