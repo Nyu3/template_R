@@ -51,11 +51,15 @@ setwd. <- function(desktop = F, ...) {  # Needed to copy a file path on the cons
 }  # setwd.()
 
 
-## Lightly vroom() for csv == (2022-02-16) ========================
+## Lightly vroom() for csv == (2022-03-22) ========================
 vroom. <- function(file = NULL, skip = 0, coln = T, delim = ',', ...) {
   query_lib.(c('hablar', 'vroom'))
-  File <<- file %||% {  # You may use the file name later in case of using write.()
-           dir(pattern = 'csv|CSV') %>% {.[!str_detect(., '\\$')]} %>% choice.(., note = 'Target File(s)')}
+  if (!is.null(file)) {
+    filen <- if (length(file) == 1) file else str_c(file, collapse = '|')
+    File <<- list.files(pattern = 'csv|CSV') %>% {.[str_detect(., pattern = filen)]}
+  } else {
+    File <<- dir(pattern = 'csv|CSV') %>% {.[!str_detect(., '\\$')]} %>% choice.(., note = 'Target File(s)')
+  }
   enc <- map_chr(File, ~ try(readr::guess_encoding(.), silent = T) %>%  # for a tibble: 0 x 0
                          {if ('try-error' %in% class(.)) 'ASCII' else .[[1,1]]} %>%
                          {case_when(str_detect(., 'ASCII|Shift_JIS|windows') ~ 'cp932', str_detect(., 'UTF-8') ~ 'utf8', TRUE ~ 'unknown')}
@@ -266,7 +270,7 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 }  # dt2time.(nya0)
 
 
-## Powerful copy & paste == (2021-08-21) ========================
+## Powerful copy & paste == (2022-03-14) ========================
 pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
   query_lib.(c('hablar', 'stringdist'))
   clip <- suppressWarnings(readr::clipboard()) %>%
@@ -317,7 +321,7 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
   }
   d <- d %>%
        set_names(., names(d) %>% gsub('NA', 'X', .) %>% if_else(nchar(.) == 0, 'X', .) %>% make.unique(., sep = '_')) %>%
-       map_df(~ gsub('#N/A', NA, .)) %>%
+       map_df(~ gsub('#N/A|NULL', NA, .)) %>%
        hablar::retype() %>%
        dt2time.(., timeSort = F) %>%
        mutate_if(., ~ is.character(.), ~ correctChr.(.)) %>%
@@ -682,13 +686,13 @@ zenk. <- function(chr, ...) {
 }
 
 
-## Reshape text by cutting space & common characters == (2021-08-29) ========================
+## Reshape text by cutting space & common characters == (2022-03-14) ========================
 correctChr. <- function(chr, ...) {
   if (str_detect(chr, '[:alpha:]') %>% any.(.) %>% `!`) {
     if (str_detect(chr, '%') %>% any.(.)) chr <- as.vector(chr) %>% parse_number(.) %>% {. /100}  # '12.3%'
     if (str_detect(chr, ',') %>% any.(.)) chr <- as.vector(chr) %>% gsub(',', '', .) %>% parse_number(.)  # "123,456,789", or "\1,000"
   }
-  chr[chr %in% ''] <- NA  # str_detect(chr, '') doesn't work well...
+  chr[chr %in% c('', '#N/A', 'NA', 'NULL')] <- NA_character_  # str_detect(chr, '') doesn't work well...
   chr <- zenk.(chr)
   return(chr)
 }
@@ -879,8 +883,8 @@ legeX. <- function(ratio, ...) if (is.null(ratio) || is.na(ratio)) NULL else par
 legeY. <- function(ratio, ...) if (is.null(ratio) || is.na(ratio)) NULL else par('usr')[3] +diff(par('usr')[3:4]) *ratio
 
 
-## Easy legend == (2021-08-22) ========================
-legen2. <- function(name, legePos = NULL, col = NULL, lty = NULL, cex = NULL, inv = NULL, ...) {
+## Easy legend == (2022-04-18) ========================
+legen2. <- function(name, legePos = NULL, col = NULL, lty = NULL, pch = NULL, cex = NULL, inv = NULL, ...) {
   if (is.null(name) || 0 %in% name) return()
   par(family = jL.(name))
   if (is.null(cex)) {
@@ -898,13 +902,13 @@ legen2. <- function(name, legePos = NULL, col = NULL, lty = NULL, cex = NULL, in
     cex <- mean(Cex)
   }
   inv <- inv %||% {-0.5 *cex +1.5}
-  col <- col %||% color2.(len = )
+  col <- col %||% color2.(len = length(name))
   tmp <- legend('topright', name, cex = cex, plot = F)
   legeX <- legeX.(legePos[1]) %||% {2 *tmp[['rect']]$left -tmp[['text']]$x[1]}
   legeY <- legeY.(legePos[2]) %||% legeY.(0.975)
 
   legend(x = legeX, y = legeY, legend = name,
-         cex = cex, x.intersp = 0.65, y.intersp = inv, lty = lty %||% 1, horiz = F,
+         cex = cex, x.intersp = 0.65, y.intersp = inv, lty = lty, pch = pch, horiz = F,
          box.lty = 0, lwd = 0.9, seg.len = 1.3, col = colTr.(col, tr = 0.9), text.col = col, bg = colTr.(NULL, 0.6))
   par(family = ifelse(Sys.getenv('OS') == '' & Sys.getenv('USER') != '', 'Avenir Next', 'sans'))
 }  # plt.(iris, name = 0); legen2.(name = str_flatten(letters) %>% str_sub(., 1, 26) %>% rep(., 10))
@@ -1011,9 +1015,10 @@ intersectX. <- function(df1, df2, ...) {
 }  # plt.(list(df1, df2); abline(v = intersectX.(df1, df2))
 
 
-## Quick plot == (2022-01-26) ========================
-plt. <- function(d, ord = F, lty = NULL, lwd = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = NA,
-                 legePos = NULL, name = NULL, mar = par('mar'), PDF = T, add = 1, tcl = par('tcl'), type = 'l', grid = F, ...) {
+## Quick plot == (2022-04-19) ========================
+plt. <- function(d, ord = F, lty = NULL, lwd = NULL, pch = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = NA, yline = NULL,
+                 legePos = NULL, name = NULL, mar = par('mar'), add = 1, tcl = par('tcl'), type = 'l', grid = F,
+                 PDF = T, multi = F, ...) {
   ## You must prepare a data of list(tibble(x = ~, y = ~)) to draw x-y graph; otherwise n-x & n-y graph are separately drawn
   if ('list' %in% class(d)) {  # [[x1, y1], [x2, y2], ...]
     d <- d[!sapply(d, is.null)]  # needed to delete NULL before the following if ()
@@ -1036,9 +1041,27 @@ plt. <- function(d, ord = F, lty = NULL, lwd = NULL, xlab = '', ylab = '', col =
   } else {
     stop('Try again with a data something like [x, y], [ID, y] or [y1, y2, ...].\n\n', call. = F)
   }
-
-  lty <- lty %||% 1 %>% rep(., length(dL))
-  lwd <- lwd %||% whichSize.(ref = length(dL), vec = c(5, 10, 25, 50), mirror = c(1.5, 1.1, 0.8, 0.15))
+  if (is.numeric(type)) type <- c('l', 'p', 'pp', 'b', 'bb', 'h', 's')[n_cyc.(type, 7)]
+  lty <- lty %||% {
+    if (type %in% c('p', 'pp')) {
+      rep(0, length(dL))
+    } else {
+      rep(1, length(dL))
+    }
+  }
+  lwd <- lwd %||% whichSize.(ref = length(dL), vec = c(5, 10, 25, 50), mirror = c(1.5, 1.1, 0.8, 0.35))
+  pch_point <- if (!anyNA(pch) && !is.null(pch)) {
+      pch
+  } else {
+    if (type %in% c('l', 'h', 's')) {
+      NULL
+    } else if (type %in% c('p', 'b')) {
+      rep(1, length(dL))
+    } else if (type %in% c('pp', 'bb')) {
+      rep(19, length(dL))
+    }
+  }
+  pch_legend <- if (anyNA(pch) && type %in% c('p', 'pp', 'b', 'bb')) NULL else pch_point  # to vanish bothersome point dot only for the legend
   col <- color2.(col, len = max(length(dL), length(name)))
   def.(c('xlim2', 'ylim2'), list(pr.(map.(dL, ~ .[1]), xlim, 0.02), pr.(map.(dL, ~ .[2]), ylim, 0.12)))
   ## add = 0; just prepare empty camvas, add = 1; normal plot, add = 2; add lines or points only
@@ -1053,33 +1076,33 @@ plt. <- function(d, ord = F, lty = NULL, lwd = NULL, xlab = '', ylab = '', col =
     }
     box()
     mtext(xlab, side = 1, las = 1, cex = 1, family = jL.(xlab), line = par('mar')[1] -1.00)
-    mtext(ylab, side = 2, las = 3, cex = 1, family = jL.(ylab), line = par('mar')[2] -yPos.(ylim2))
+    mtext(ylab, side = 2, las = 3, cex = 1, family = jL.(ylab), line = yline %||% par('mar')[2] -yPos.(ylim2))
     if (add == 0) return(cat('\n'))
   }
   for (i in seq_along(dL)) {
-    if (type == 0 || type == 'l') {
+    if (type == 'l') {
       lines(dL[[i]], lty = lty[i], col = colTr.(col[i], tr = 0.8), lwd = lwd)
-    } else if (type == 1 || type == 'p') {
-      points(dL[[i]], pch = lty[i], col = colTr.(col[i], tr = 0.8), lwd = lwd /2)
-    } else if (type == 2 || type == 'b') {
-      lines(dL[[i]], lty = 1, col = colTr.(col[i], tr = 0.8), lwd = lwd)
-      points(dL[[i]], pch = lty[i], col = colTr.(col[i], tr = 0.8), lwd = lwd /2)
-    } else if (type == 3 || type == 'h') {
+    } else if (type %in% c('p', 'pp')) {
+      points(dL[[i]], pch = pch_point[i], col = colTr.(col[i], tr = ifelse(type == 'p', 0.8, 0.6)), lwd = lwd /2)
+    } else if (type %in% c('b', 'bb')) {
+      lines(dL[[i]], lty = lty[i], col = colTr.(col[i], tr = 0.8), lwd = lwd)
+      points(dL[[i]], pch = pch_point[i], col = colTr.(col[i], tr = ifelse(type == 'b', 0.8, 0.6)), lwd = lwd /2)
+    } else if (type == 'h') {
       lines(dL[[i]], lty = 1, col = colTr.(col[i], tr = 0.8), lwd = lwd, type = 'h')
-    } else if (type == 4 || type == 's') {
+    } else if (type == 's') {
       lines(dL[[i]], lty = 1, col = colTr.(col[i], tr = 0.8), lwd = lwd, type = 's')
     }
   }
   if ((length(dL) != 1 || !is.null(name)) && !0 %in% name) {  # No legend is needed for one line at least. Or name = 0 returns no legend
     name <- name %||% names(dL) %||% str_c('#', seq_along(dL))  # Auto assignment
-    legen2.(name, legePos, col, lty)
+    legen2.(name, legePos, col, lty, pch_legend)
   }
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
-  gp.()  # Get back to the default fear of using mar
-}  # plt.(iris[4:5])  plt.(iris[-5], legePos = c(0.2, 0.99))  plt.(psd[[1]], type = 's')  plt.(psd[2:3], ylim = c(0, NA))
+  if (multi == FALSE) gp.()  # for par(mfrow=c(2,1)), layourt(matrix(c(1,1,1,2),nrow=4,ncol=1,byrow=T)), not to use gp.()
+}  # plt.(iris[4:5], type = 3)  plt.(iris[-5], legePos = c(0.2, 0.99))  plt.(psd[[1]], type = 's')  plt.(psd[2:3], ylim = c(0, NA))
 
 
-## Kernel Density Estimation plot == (2021-08-30) ========================
+## Kernel Density Estimation plot == (2022-05-06) ========================
 dens. <- function(d, bw = 1, ord = F, lty = NULL, lwd = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = c(0, NA),
                   legePos = NULL, name = NULL, mar = par('mar'), grid = F, cum = F, ...) {
   query_lib.('logKDE')
@@ -1118,7 +1141,7 @@ dens. <- function(d, bw = 1, ord = F, lty = NULL, lwd = NULL, xlab = '', ylab = 
   dL <- dLformer.(d, ord) %>% map(., kde_xy) %>% {if (cum == TRUE) map(., cdf.) else .}
       # stop('Only available for [ID,y] or [y1,y2, ...]', call. = F)
 # if (length(xlim) == 2 && !is.na(xlim[1])) xlim <- NA  # the graph is hard to see if the x limit is set
-  plt.(dL, ord, lty, lwd, xlab, ylab, col, xlim, ylim, legePos, name, mar, grid)
+  plt.(dL, ord=ord, lty=lty, lwd=lwd, xlab=xlab, ylab=ylab, col=col, xlim=xlim, ylim=ylim, legePos=legePos, name=name, mar=mar, grid=grid)
 
   ## p-th pecentile
   out <- map(dL, ~ cdf.(., p = c(0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9) /100)) %>%
@@ -1452,7 +1475,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
 }  # corp.(iris[c(1, 4)], x_lr = c(5, 7))  corp.(iris[c(1, 4)], li = T, x_lr = c(5, 7))
 
 
-## Boxplot oriented for quantile limit and full/half box == (2021-10-07) ========================
+## Boxplot oriented for quantile limit and full/half box == (2022-04-19) ========================
 boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit, mark, col, name, xlab, ylab, ...) {
   if (cut == TRUE) {
     for (i in seq(nrow(tnL))) {
@@ -1603,7 +1626,6 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
   ## d <- sample_n(diamonds[-8:-10], 200)
   ## Select data
   if (is.atomic(d)) d <- as_tibble(d) %>% set_names('x')
-  d <- na0.(d)
   d <- time2.(d, div)
   if (!is.null(mark) && mark %in% names(d)) {
     d_mark <- d[mark]
@@ -2531,7 +2553,7 @@ n_factor. <- function(x) {
 }
 
 
-## dividing data into list with the size on 0~1 ratio == (2022-03-02) ========================
+## dividing data into list with the size on 0~1 ratio == (2022-04-15) ========================
 ## overlapping sliding window-based segmentation; imagine a trump sliding
 ## called by https://www.researchgate.net/publication/323935725_Analyzing_User_Emotions_via_Physiology_Signals
 ## proposed by https://www.fbs.osaka-u.ac.jp/labs/ishijima/FFT-09.html
@@ -2555,26 +2577,32 @@ data_slider. <- function(d, overlap = 0, block = 3, len = NULL, .f = NULL, .col 
   for (i in seq_along(1:min(length(srt), length(end)))) dL[[i]] <- i %>% {srt[.]:end[.]} %>% d[., ]
   if (is.null(.f) == TRUE) {
     return(dL)  # return a divided raw data as list
+  } else if (class(.f) == 'function') {
+    stop('Please make .f define in your namespace and input function name as character ...\n\n', call. = F)
   } else {
     ## when using a function, you must point the column number that is calculated
-    if (length(.col) > 1) stop('    Select one column...\n\n', call. = F)
+    if (length(.col) > 1 || .col < 1 || .col > ncol(d) -1) stop('    Select one column...\n\n', call. = F)
     if (chained == TRUE) {  # the divided list data should be binded as chained like time series
+      fun_names <- names(d)[1 +.col] %>% str_c(.f, '_', .)
       tmp <- map_dfr(dL, function(x) {
-               bind_cols(
-                 map_df(x[1], mean),  # ID included
-                 map_df(x[1 +.col], .f)  # one list --> one value (NOTE: you cannot use vector functions like log(x))
-               )
+               dL2 <- list(map_df(x[1], mean))  # ID included
+               for (j in seq_along(fun_names)) {
+                 dL2 <- c(dL2, map_df(x[1 +.col], get(.f[j])) %>% set_names(fun_names[j]))
+               }
+               bind_cols(dL2) %>%
+               return()
              })
     } else {  # the divided list as cyclic data --> parallel --> rowwise mean
-      tmp <- skipMess.(map_dfc(dL, function(x) map_df(x[-1] %>% .[.col], .f))) %>%  # ID skipped
+      tmp <- skipMess.(map_dfc(dL, function(x) map_df(x[-1] %>% .[.col], get(.f)))) %>%  # ID skipped
              mutate(y = rowMeans(., na.rm = T)) %>% select(y)  # integrated into mean
     }
     return(tmp)  # return the calculated data frame
   }
-}
+}  # Note: you cannot use any arguments... 'mean' is OK, but 'mean(x, na.rm = T)' is NG
 # data_slider.(iris, overlap = 0.5, block = 15)
-# plt.(iris[1]);  data_slider.(iris, overlap = 0.5, len = 10, .f = mean, .col = 1) %>% plt.(add = 2, col = 'blue')
-# data_slider.(iris, overlap = 0.5, block = 15, .f = function(x) Mod(fft(x)) /(length(x)/2), .col = 1, chained = F)
+# data_slider.(iris, len = 10, .f = c('mean', 'sd'), .col = 2)
+# plt.(iris[1]);  data_slider.(iris, overlap = 0.5, len = 10, .f = 'mean', .col = 1) %>% plt.(add = 2, col = 'blue')
+# ff <- function(x) Mod(fft(x)) /(length(x)/2);  data_slider.(iris, overlap = 0.5, block = 15, .f = 'ff', .col = 1, chained = F)
 
 
 ## Numeric conversion of lower and/or upper bounds generated by cut() == (2022-01-26) ========================
@@ -2703,12 +2731,12 @@ tryReturn. <- function(modeling) suppressWarnings(try(modeling, silent = T) %>% 
 # tryReturn.(nlsLM(y ~ x, start = ... ))  tryReturn.(date('123456-1-2'))
 
 
-## Subdivide a vector into each group list == (2022-03-03) ========================
+## Subdivide a vector into each group list == (2022-04-11) ========================
 portion. <- function(x, div = 3, ...) {  # ID = 1:7 extracted each for 2 --> [ [1,2],[3,4],[5,6],[7] ]
   if (!is.atomic(x)) stop('Use only a vector...\n\n', call. = F)
   id <- seq_along(x)
   div_int <- {length(id) %/% div} +if_else(length(id) %% div == 0, 0, 1)
-  if (length(id) <= div) return(x)
+  if (length(id) <= div) return(list(x))
 
   tmpL <- list()
   for (i in seq(div_int)) {
