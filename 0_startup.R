@@ -270,61 +270,49 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 }  # dt2time.(nya0)
 
 
-## Powerful copy & paste == (2022-03-14) ========================
+## Powerful copy & paste == (2022-05-10) ========================
 pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
   query_lib.(c('hablar', 'stringdist'))
   clip <- suppressWarnings(readr::clipboard()) %>%
           {.%||% stop('It\'s not a readable text ...\n\n', call. = F)} %>%
-          map_chr(~ str_replace_all(., '#DIV/0!', 'NA'))
-  if (vectorize == TRUE) {  # for lazy_args.(); map.(clip, ~ str_count(., ' ')) %>% {. > 2} %>% any --> TRUE
-    return(clip)
-  } else if (length(clip) == 1) {  # When copying one row you'll get an atomic vector
+          map_chr(~ str_replace_all(., '#DIV/0!|#N/A|NULL', 'NA'))
+  rowcol <- sum(str_count(clip, '\n') +1) %>% {c(., sum(str_count(clip, '\t')) / . +1)}
+
+  if (vectorize == TRUE) return(clip)  # for lazy_args.(); map.(clip, ~ str_count(., ' ')) %>% {. > 2} %>% any --> TRUE
+  if (rowcol[1] == 1) {  # When copying just text, one cell or one row, you'll get an atomic vector
     vec <- str_split(clip, '\t')[[1]]
-    if (as.list(vec[!is.na(vec)]) %>% map_dbl(~ skipMess.(as.numeric(.))) %>% anyNA) {
-      return(vec)  # When the copied vector is not all numeric
-    } else {
-      return(as.numeric(vec))
-    }
-  } else {  # When copying in a vertical way
-    d <- skipMess.(read_delim(clip, col_names = F, delim = '\t')) %>% dplyr::filter(rowSums(is.na(.)) != ncol(.))
-    if (is.null(n)) {
-      ## Core algorithm
-      tmp <- pmin(nrow(d), 20) %>% {d[seq(.), ]} # %>% tidyr::fill(names(d), .direction = 'downup')  # Check 20 rows with any blank filled
-      row123 <- vector()
-      for (i in seq(3)) {  # similar pattern will be 0 ~ 1
-        row123[i] <- tmp %>%
-                     map(~ stringdist::stringdist(.[-i], .[i], weight = c(d = 1, i = 1, s = 0.1, t = 1), method = 'osa')) %>%
-                     unlist %>%
-                     mean(., na.rm = T)
-      }
-    } else {
-      is.wholenumber <- function(x, tol = .Machine$double.eps ^0.5) abs(x - round(x)) < tol  # is.integer(1) is FALSE !
-      if (n < 0 || !is.wholenumber(n)) stop('Input n as integer {0, 1, 2, ...}\n\n', call. = F)
-    }
-    col_limit <- n %||% {row123 %>% {if (any(.[!is.na(.)] >= 1)) which.max(.) else 0}}  # if all is similar then return 0 (no column names)
-    ## Find which row the real column name has
-    if (col_limit >= 1) {  # Latent column names
-      bind_column_names <- d[seq(col_limit), ] %>% map_chr(function(x) x[!is.na(x)] %>% str_flatten(., collapse = '_'))
-      d <- d[-seq(col_limit), ] %>% set_names(bind_column_names)
-    } else {  # n = 0 or row123 < 1
-      if (ncol(d) > 1) {  # No column names
-        d <- d
-      } else {  # just vector you want
-        vec <- unlist(d)
-        if (as.list(vec[!is.na(vec)]) %>% map_dbl(~ skipMess.(as.numeric(.))) %>% anyNA) {
-          return(vec)  # When the copied vector is not all numeric
-        } else {
-          return(as.numeric(vec))
-        }
-      }
-    }
+    if (suppressWarnings(sapply(vec, as.numeric)) %>% anyNA()) return(vec)  # When the copied vector is not all numeric
+    else return(as.numeric(vec))
   }
+  d <- read_delim(clip, col_names = F, show_col_types = F, delim = '\t') %>% dplyr::filter(rowSums(is.na(.)) != ncol(.))
+
+  ## Find which row the real column name has
+  if (is.null(n)) {
+    ## auto estimation of which row is header
+    tmp <- pmin(nrow(d), 20) %>% {d[seq(.), ]} # %>% tidyr::fill(names(d), .direction = 'downup')  # Check 20 rows with any blank filled
+    row123 <- vector()
+    for (i in seq(3)) {  # similar pattern will be 0 ~ 1
+      row123[i] <- tmp %>%
+                   map_df(~ stringdist::stringdist(.[-i], .[i], weight = c(d = 1, i = 1, s = 0.1, t = 1), method = 'osa')) %>%
+                   unlist() %>%
+                   mean(na.rm = T)
+    }
+    n <- row123 %>% {if (any(.[!is.na(.)] >= 1)) which.max(.) else 0}  # if all is similar then return 0 (no column names)
+  }
+  is.wholenumber <- function(x, tol = .Machine$double.eps ^0.5) abs(x - round(x)) < tol  # is.integer(1) is FALSE !
+  if (n < 0 || !is.wholenumber(n)) {
+    stop('Input n as integer {0, 1, 2, ...}\n\n', call. = F)
+  } else if (n >= 1) {
+    bind_colnames <- d[seq(n), ] %>% map_chr(~ .[!is.na(.)] %>% str_flatten(collapse = '_'))
+    d <- d[-seq(n), ] %>% set_names(bind_colnames)
+  }
+
+  ## make the data clean
   d <- d %>%
-       set_names(., names(d) %>% gsub('NA', 'X', .) %>% if_else(nchar(.) == 0, 'X', .) %>% make.unique(., sep = '_')) %>%
-       map_df(~ gsub('#N/A|NULL', NA, .)) %>%
+       set_names(names(d) %>% gsub('NA', 'X', .) %>% if_else(nchar(.) == 0, 'X', .) %>% make.unique(., sep = '_')) %>%
        hablar::retype() %>%
-       dt2time.(., timeSort = F) %>%
-       mutate_if(., ~ is.character(.), ~ correctChr.(.)) %>%
+       dt2time.(timeSort = F) %>%
+       mutate_if(~ is.character(.), ~ correctChr.(.)) %>%
        select_if(colSums(is.na(.)) != nrow(.))
   return(d)
 }  # END of pp.()
@@ -424,14 +412,13 @@ xyL2. <- function(d, fix = 1, ...) {  # In case of [x, y1, y2, ...] --> [x, y1],
 }  # xyL2.(iris, 5) %>% walk(., box2.)
 
 
-## Transform [ID1,ID2,y] <--> [ID1, y1.ID2, y2.ID2, y3.ID2, ...] == (2021-08-24) ========================
+## Transform [ID1,ID2,y] <--> [ID1, y1.ID2, y2.ID2, y3.ID2, ...] == (2022-05-09) ========================
 id2y. <- function(d, ...) {  # ID: crush, y: vacuum
   tab_col <- map_lgl(d, ~ is.character(.) | is.factor(.)) %>% names(d)[.]
   num_col <- map_lgl(d, ~ is.numeric(.)) %>% names(d)[.]
 
-  if (length(tab_col) == 0 || length(num_col) == 0 || length(tab_col) *length(num_col) == 1) {  # [y1,y2, ...] or [ID1,ID2, ...] or [ID,y]
-    return(d)
-  } else if (length(tab_col) *length(num_col) > 1) {  # [ID1,ID2,y1,y2, ...]
+  if (length(tab_col) == 0 || length(num_col) == 0) return(d)  # [y1,y2, ...] or [ID1,ID2, ...]
+  if (length(tab_col) *length(num_col) != 0) {  # [ID,y] or [ID1,ID2,y1,y2, ...]
     tab_one <- choice.(tab_col, note = 'the [ID] to be crushed into factor Y', chr = T, one = T)
     num_one <- choice.(num_col, note = 'the [y] to be vacuumed by the new Y', chr = T, one = T)
     out <- d %>%
@@ -440,7 +427,7 @@ id2y. <- function(d, ...) {  # ID: crush, y: vacuum
            select(!nya)
     return(out)
   }
-}  # id2y.(diamonds[1:3] %>% sample_n(1000)) %>% box2.
+}  # id2y.(iris[4:5])  id2y.(diamonds[1:3] %>% sample_n(1000)) %>% box2.
 
 
 ## Split ID data into list in a tidy way == (2021-06-23) ========================
@@ -479,7 +466,7 @@ case2. <- function(d, div = NULL, percentage = T, ...) {
 }  # case2.(iris[3], div = 3) %>% box2.()
 
 
-## Change a data into time cases; year, month, min, sec, ... , or time length == (2021-08-24) ========================
+## Change a data into time cases; year, month, min, sec, ... , or time length == (2022-05-12) ========================
 time2. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, y1, y2, ...]
   query_lib.(c('naturalsort', 'lubridate'))
   if (map_lgl(d, is_time.) %>% sum == 0) return(d)
@@ -490,9 +477,9 @@ time2. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, y1, y2
   for (i in seq_along(time_col)) {
     ## auto scaling of time unit
     if (is.null(div)) {
-      tenta <- d[time_col[i]] %>% pull() %>% {min(.) %--% max(.)}
-      for (j in seq_along(time_scale)) time_scale[j] <- time_length(tenta, unit = names(time_scale)[j])
-      div0 <- whichNear.(time_scale, 10) %>% {names(time_scale)[.]}  # guess a better scale
+      tmp <- d[time_col[i]] %>% pull() %>% {min(.) %--% max(.)}
+      for (j in seq_along(time_scale)) time_scale[j] <- time_length(tmp, unit = names(time_scale)[j])
+      div0 <- whichNear.(time_scale, 10) %>% names(time_scale)[.]  # guess a better scale
       if (origin == TRUE) {
         div <- div0
       } else if (div0 == 'year') {
@@ -508,9 +495,8 @@ time2. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, y1, y2
     ## time length calculation
     if (origin == TRUE) {
       d <- d %>%
-           mutate(!!time_col[i] := {min(get(time_col[i])) %--% get(time_col[i])} %>%
-           time_length(., unit = div)) %>%
-           rename('{time_col[i]} ({div})' := time_col[i])
+           mutate(!!time_col[i] := {min(get(time_col[i])) %--% get(time_col[i])} %>% time_length(unit = div)) %>%
+           rename('{time_col[i]}_{div}' := time_col[i])
       if (i == length(time_col)) return(d)
     } else {  # Note: if the data type is <date>, hour/min/sec will be 0
       d <- if (div %in% c('ym', 'my')) {
@@ -528,20 +514,20 @@ time2. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, y1, y2
            } else if (div %in% c('sec', 'second', 'seconds')) {
              d %>% mutate(!!time_col[i] := second(get(time_col[i])) %>% as.factor)
            }
-      if (i == 1) d <- naturalsort::naturalorder(d[[time_col[i]]]) %>% d[., ] %>% rename('{time_col[i]} ({div})' := time_col[i])
+      if (i == 1) d <- naturalsort::naturalorder(d[[time_col[i]]]) %>% d[., ] %>% rename('{time_col[i]}_{div}' := time_col[i])
     }
   }
   return(d)
 }  # time2.(economics)　time2.(economics, div = 'day', origin = T)
 
 
-## HTML table == (2020-09-17) ========================
+## HTML table == (2022-05-11) ========================
 html. <- function(d, ...) {
   query_lib.('DT')
   if (is.atomic(d) && !is.null(names(d))) d <- as.list(d) %>% list2tibble.()  # Case with a vector with names created by sapply()
   num2chr <- function(num) {
     if (!is.numeric(num)) return(num)
-    Digits <- gsub('\\.', '', num) %>% gsub('^0', '', .) %>% str_length(.)
+    Digits <- gsub('\\.', '', num) %>% gsub('^0', '', .) %>% str_length()
     Digits <- rep(3, length(num))  # mm unit allows 0.001; '%.3f'
     Digits[num >= 100] <- 0  # 100.000 looks bothersome, so change it to 100
     Digits[num %>% near(., as.integer(.))] <- 0  # In case of integer
@@ -550,7 +536,7 @@ html. <- function(d, ...) {
     return(chr)
   }
   d <- d %>% mutate_if(~ is.numeric(.), ~ num2chr(.))  # All data is character
-  d[is.na(d)] <- ''  # Printing blank instead of NA
+# d[is.na(d)] <- ''  # Printing blank instead of NA
   DT::datatable(d, rownames = F, options = list(pageLength = 100), filter = 'top')
 }
 
@@ -754,15 +740,13 @@ choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, fullte
 }  # choice.(LETTERS[1:2], note = 'Blood type', one = T)  choice.(names(iris), note = 'xy data', chr = F)
 
 
-## Plot range for plot.window() & axisFun.() == (2020-01-21) ========================
+## Plot range for plot.window() & axisFun.() == (2022-05-09) ========================
 pr. <- function(vec, XYlims = NA, expand_ratio = 0.02, ...) {
   if ('list' %in% class(vec)) vec <- unlist(vec)
   vec[which(vec == Inf | vec == -Inf)] <- NA
-  def.(c('Min', 'Max'), list(min.(vec), max.(vec)))  # Type free for vec, list, data.frame
-  ## Type numbering; complicated but needed to use each  '&'  '&&' below...
-  range_type <- XYlims %>% { c(length(.) > 1 & c(!anyNA (.), is.na(.[1]), is.na(.[2])), is.na(.) && length(.) == 1)} %>% which(.)
-  xyR <- list(XYlims, c(Min, XYlims[2]), c(XYlims[1], Max), c(Min, Max))[[range_type]]
-  expand_direction  <-  list (c(0, 0), c(-1, 0), c(0, 1), c(-1, 1))[[range_type]]
+  if (length(XYlims) == 1) XYlims <- c(XYlims, NA)
+  xyR <- dplyr::coalesce(XYlims, c(min.(vec), max.(vec)))  # convert NA to min/max
+  expand_direction <- ifelse(is.na(XYlims), 1, 0) *c(-1, 1)  # expand the range if pointed value --> 1, NA --> 0
   XYlim2 <- xyR +diff(xyR) *expand_direction *expand_ratio
   return(XYlim2)
 }  # pr.(vec = iris[, 1], XYlims = NA, 0.013)
@@ -784,16 +768,17 @@ n_cyc. <- function(num, n_max, ...) {
 }  # n_cyc.(11, 5) n_cyc.(1:3, 5) n_cyc.(c(1, NA, 9), 5)
 
     
-## Creat translucent color == (2021-06-16) ========================
-colTr. <- function(color, tr, ...) {  # = adjustcolor(color, tr, ...)
-  if (is.null(color) || is.na(color) || color == 0) '#FFFFFF00' else rgb(t(col2rgb(color) /255), max = 1, alpha = tr)  #tr := transparency
+## Creat translucent color == (2022-05-09) ========================
+col_tr. <- function(color, tr, ...) {
+  color <- color %>% ifelse(is.na(.) | . == 0, '#FFFFFF00', .)
+  return(adjustcolor(color, alpha.f = tr))  # rgb(t(col2rgb(color) /255), max = 1, alpha = tr)
 }
 
 
 ## Color gradient with Y values == (2021-08-12) ========================
 colGra. <- function(vec, color, ColorSteps = 13, ...) {
   vec <- unlist(vec) %>% .[!is.na(.)]
-  color2 <- c(colTr.(color, tr = 0.75), 'grey80', colTr.(color, tr = 0.6))  # sapply(vec, abs) %>% max(.)
+  color2 <- c(col_tr.(color, tr = 0.75), 'grey80', col_tr.(color, tr = 0.6))  # sapply(vec, abs) %>% max(.)
   kingMax <- abs(vec) %>% max  # NOTE: the 2nd para. of the following findInterval() are not {min, max} but {-max, +max}
   out <- colorRampPalette(color2)(ColorSteps)[findInterval(vec, seq(-kingMax, +kingMax, length.out = ColorSteps))]
   return(out)
@@ -853,7 +838,7 @@ color2. <- function(color = NULL, len = NULL, ...) {
              if (rand == 6) scico::scico(len, palette = 'cork') else
              if (rand == 7) scico::scico(len, palette = 'tokyo') else
              if (rand == 8) scico::scico(len, palette = 'turku') else
-             if (rand == 9) c(RColorBrewer::brewer.pal(len, 'Spectral')) else
+             if (rand == 9) RColorBrewer::brewer.pal(len, 'Spectral') else
              if (rand == 10) color_base[1:len]
     }
   }
@@ -883,7 +868,7 @@ legeX. <- function(ratio, ...) if (is.null(ratio) || is.na(ratio)) NULL else par
 legeY. <- function(ratio, ...) if (is.null(ratio) || is.na(ratio)) NULL else par('usr')[3] +diff(par('usr')[3:4]) *ratio
 
 
-## Easy legend == (2022-04-18) ========================
+## Easy legend == (2022-05-09) ========================
 legen2. <- function(name, legePos = NULL, col = NULL, lty = NULL, pch = NULL, cex = NULL, inv = NULL, ...) {
   if (is.null(name) || 0 %in% name) return()
   par(family = jL.(name))
@@ -909,7 +894,7 @@ legen2. <- function(name, legePos = NULL, col = NULL, lty = NULL, pch = NULL, ce
 
   legend(x = legeX, y = legeY, legend = name,
          cex = cex, x.intersp = 0.65, y.intersp = inv, lty = lty, pch = pch, horiz = F,
-         box.lty = 0, lwd = 0.9, seg.len = 1.3, col = colTr.(col, tr = 0.9), text.col = col, bg = colTr.(NULL, 0.6))
+         box.lty = 0, lwd = 0.9, seg.len = 1.3, col = col_tr.(col, tr = 0.9), text.col = col, bg = col_tr.(0, 0.6))
   par(family = ifelse(Sys.getenv('OS') == '' & Sys.getenv('USER') != '', 'Avenir Next', 'sans'))
 }  # plt.(iris, name = 0); legen2.(name = str_flatten(letters) %>% str_sub(., 1, 26) %>% rep(., 10))
 
@@ -1012,55 +997,57 @@ intersectX. <- function(df1, df2, ...) {
   for (i in seq_along(crossX)) crossX[i] <- fp[i, 2] %>% {abs(s1[. +1] -s1[.]) /((. +1) -.)} %>% {ifelse(. > 0.01, fp[i, 2], NA)}
   out <- crossX[!is.na(crossX)] %>% df1[., 1]
   return(out)
-}  # plt.(list(df1, df2); abline(v = intersectX.(df1, df2))
+}  # plt.(list(df1, df2)); abline(v = intersectX.(df1, df2))
 
 
-## Quick plot == (2022-04-19) ========================
-plt. <- function(d, ord = F, lty = NULL, lwd = NULL, pch = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = NA, yline = NULL,
+## Quick plot == (2022-05-11) ========================
+plt. <- function(d, ord = F, lty = 1, lwd = NULL, pch = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = NA, yline = NULL,
                  legePos = NULL, name = NULL, mar = par('mar'), add = 1, tcl = par('tcl'), type = 'l', grid = F,
                  PDF = T, multi = F, ...) {
-  ## You must prepare a data of list(tibble(x = ~, y = ~)) to draw x-y graph; otherwise n-x & n-y graph are separately drawn
-  if ('list' %in% class(d)) {  # [[x1, y1], [x2, y2], ...]
-    d <- d[!sapply(d, is.null)]  # needed to delete NULL before the following if ()
-    if (map_lgl(d, ~ ncol(.) == 2) && map.(d, map_lgl, is.numeric)) {
-      dL <- d
-    } else {
-      stop('Try again with a data something like a list = [[x1, y1], [x2, y2], ...].\n\n', call. = F)
+  list_get <- function(...) {
+    if (is.atomic(d)) {
+      out <- d[!is.na(d)] %>% tibble(x = seq_along(.), y = .) %>% list()
+    } else if ('data.frame' %in% class(d)) {
+      num_col <- sum(sapply(d, is.numeric))
+      out <- if (num_col == 2 && ncol(d) == 2) {  # [x,y]
+               drop_na(d, everything()) %>% list()
+             } else {  # [ID,y] or [y1,y2,...]; kill ID at the same time
+               {if(num_col == 1 && ncol(d) == 2) id2y.(d) else select_if(d, is.numeric)} %>%
+               as.list() %>%
+               map(~ .[!is.na(.)] %>% tibble(x = seq_along(.), y = .))
+             }
+    } else if ('list' %in% class(d)) {  # [[x1, y1], [x2, y2], ...]
+      if (map_lgl(d, is.data.frame) %>% all()) {  # 1st; nested data.frame in list
+        if (map_lgl(d, ~ ncol(.) == 2) %>% all()) {  # 2nd; [x,y]
+          if (map_lgl(d, ~ map_lgl(., is.numeric) %>% all()) %>% all()) {  # 3rd; every data.frame is consisted of numeric values
+            out <- d
+          }
+        }
+      } else {
+        stop('Try again with a list like [[x1, y1], [x2, y2], ...].\n\n', call. = F)
+      }
     }
-  } else if ('data.frame' %in% class(d)) {
-    if (ncol(d) == 1 && map_lgl(d, ~ is.numeric(.)) %>% all) {  # [x]
-      dL <- d %>% rowid_to_column('index') %>% list
-      name <- 0  # no need of legend
-    } else if (ncol(d) == 2 && map_lgl(d, ~ is.numeric(.)) %>% all) {  # [x, y]
-      dL <- list(d)
-    } else {  # [ID, y] or [y1, y2, ...]
-      dL <- dLformer.(d, ord) %>% map(~ tibble(x = seq_along(.), y = unlist(.)))  # Convert index type
-    }
-  } else if (is.atomic(d)) {
-    dL <- tibble(y = d) %>% rowid_to_column('x') %>% list
-  } else {
-    stop('Try again with a data something like [x, y], [ID, y] or [y1, y2, ...].\n\n', call. = F)
+    return(out)
   }
+  dL <- list_get()
+
+  if (length(dL) == 1) name <- 0
   if (is.numeric(type)) type <- c('l', 'p', 'pp', 'b', 'bb', 'h', 's')[n_cyc.(type, 7)]
-  lty <- lty %||% {
-    if (type %in% c('p', 'pp')) {
-      rep(0, length(dL))
-    } else {
-      rep(1, length(dL))
-    }
+  lty_get <- function(...) {
+    if (type %in% c('p', 'pp')) return(rep(0, length(dL)))
+    if (length(dL) == length(lty)) return(lty)
+    else return(rep(lty[1], length(dL)))
   }
+  lty <- lty_get()
   lwd <- lwd %||% whichSize.(ref = length(dL), vec = c(5, 10, 25, 50), mirror = c(1.5, 1.1, 0.8, 0.35))
-  pch_point <- if (!anyNA(pch) && !is.null(pch)) {
-      pch
-  } else {
-    if (type %in% c('l', 'h', 's')) {
-      NULL
-    } else if (type %in% c('p', 'b')) {
-      rep(1, length(dL))
-    } else if (type %in% c('pp', 'bb')) {
-      rep(19, length(dL))
-    }
+  pch_point_get <- function(...) {
+    if (!anyNA(pch) && !is.null(pch)) return(pch)
+    if (type %in% c('l', 'h', 's')) return(NULL)
+    if (type %in% c('p', 'b')) return(rep(1, length(dL)))
+    if (type %in% c('pp', 'bb')) return(rep(19, length(dL)))
+    else return(NULL)
   }
+  pch_point <- pch_point_get()
   pch_legend <- if (anyNA(pch) && type %in% c('p', 'pp', 'b', 'bb')) NULL else pch_point  # to vanish bothersome point dot only for the legend
   col <- color2.(col, len = max(length(dL), length(name)))
   def.(c('xlim2', 'ylim2'), list(pr.(map.(dL, ~ .[1]), xlim, 0.02), pr.(map.(dL, ~ .[2]), ylim, 0.12)))
@@ -1081,16 +1068,16 @@ plt. <- function(d, ord = F, lty = NULL, lwd = NULL, pch = NULL, xlab = '', ylab
   }
   for (i in seq_along(dL)) {
     if (type == 'l') {
-      lines(dL[[i]], lty = lty[i], col = colTr.(col[i], tr = 0.8), lwd = lwd)
+      lines(dL[[i]], lty = lty[i], col = col_tr.(col[i], tr = 0.8), lwd = lwd)
     } else if (type %in% c('p', 'pp')) {
-      points(dL[[i]], pch = pch_point[i], col = colTr.(col[i], tr = ifelse(type == 'p', 0.8, 0.6)), lwd = lwd /2)
+      points(dL[[i]], pch = pch_point[i], col = col_tr.(col[i], tr = ifelse(type == 'p', 0.8, 0.6)), lwd = lwd /2)
     } else if (type %in% c('b', 'bb')) {
-      lines(dL[[i]], lty = lty[i], col = colTr.(col[i], tr = 0.8), lwd = lwd)
-      points(dL[[i]], pch = pch_point[i], col = colTr.(col[i], tr = ifelse(type == 'b', 0.8, 0.6)), lwd = lwd /2)
+      lines(dL[[i]], lty = lty[i], col = col_tr.(col[i], tr = 0.8), lwd = lwd)
+      points(dL[[i]], pch = pch_point[i], col = col_tr.(col[i], tr = ifelse(type == 'b', 0.8, 0.6)), lwd = lwd /2)
     } else if (type == 'h') {
-      lines(dL[[i]], lty = 1, col = colTr.(col[i], tr = 0.8), lwd = lwd, type = 'h')
+      lines(dL[[i]], lty = 1, col = col_tr.(col[i], tr = 0.8), lwd = lwd, type = 'h')
     } else if (type == 's') {
-      lines(dL[[i]], lty = 1, col = colTr.(col[i], tr = 0.8), lwd = lwd, type = 's')
+      lines(dL[[i]], lty = 1, col = col_tr.(col[i], tr = 0.8), lwd = lwd, type = 's')
     }
   }
   if ((length(dL) != 1 || !is.null(name)) && !0 %in% name) {  # No legend is needed for one line at least. Or name = 0 returns no legend
@@ -1102,8 +1089,8 @@ plt. <- function(d, ord = F, lty = NULL, lwd = NULL, pch = NULL, xlab = '', ylab
 }  # plt.(iris[4:5], type = 3)  plt.(iris[-5], legePos = c(0.2, 0.99))  plt.(psd[[1]], type = 's')  plt.(psd[2:3], ylim = c(0, NA))
 
 
-## Kernel Density Estimation plot == (2022-05-06) ========================
-dens. <- function(d, bw = 1, ord = F, lty = NULL, lwd = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = c(0, NA),
+## Kernel Density Estimation plot == (2022-05-09) ========================
+dens. <- function(d, bw = 1, ord = F, lty = 1, lwd = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = c(0, NA),
                   legePos = NULL, name = NULL, mar = par('mar'), grid = F, cum = F, ...) {
   query_lib.('logKDE')
   kde_xy <- function(vec) {
@@ -1259,7 +1246,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlab = '', ylab = '', col = 
   par(mar = mar, mgp = c(0, 0.4, 0), ann = F)
   if (overlay == FALSE) {
     for (i in seq_along(dL)) {
-      hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = xlim2, ylim = ylim2, col = colTr.(col[i], 0.80), breaks = whatBreak(dL[[i]]))
+      hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = xlim2, ylim = ylim2, col = col_tr.(col[i], 0.80), breaks = whatBreak(dL[[i]]))
       for (i in 1:2) {
         axis(1, at=axisFun.(xlim2,n=5)[[i]], labels=(i==1), tcl=-par('tcl')/i, cex.axis=ifelse(yPos.(xlim2)>0.9,1,0.9), lend='butt', padj=-0.25)
         axis(2, at=axisFun.(ylim2,n=6)[[i]], labels=(i==1), tcl=-par('tcl')/i, cex.axis=ifelse(yPos.(ylim2)>0.9,1,0.9), lend='butt')
@@ -1270,7 +1257,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlab = '', ylab = '', col = 
     }
   } else {
     for (i in seq_along(dL)) {
-      hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = xlim2, ylim = ylim2, col = colTr.(col[i], 0.80), breaks = whatBreak(dL[[i]]))
+      hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = xlim2, ylim = ylim2, col = col_tr.(col[i], 0.80), breaks = whatBreak(dL[[i]]))
       par(new = if (length(dL) == 1) F else (if (i != length(dL)) T else F))
     }
     for (i in 1:2) {
@@ -1421,19 +1408,19 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
     lcl <- qfit -1.96 *qse
     polygonX <- sort(qx) %>% {c(., rev(.))}
     polygonY <- order(qx) %>% {c(ucl[.], lcl[rev(.)])}
-    polygon(polygonX, polygonY, border = NA, col = colTr.('grey95', tr = 0.8))
+    polygon(polygonX, polygonY, border = NA, col = col_tr.('grey95', tr = 0.8))
     abline(mdl, col = '#22222222', lwd = 3.5)  # KS2014 line
     if (!is.null(x_lr) & length(x_lr) == 2) {  # y-range of 95% CI corresponding to your interested x-range
       whichNear.(qx, x_lr) %>% {c(min(lcl[.]), max(ucl[.]))} %>% set_names(c('(Min.95%CI)', '(Max.95%CI)')) %>% print(.)
     }
   }
   ## http://friendly.github.io/heplots/reference/covEllipses.html
-  ## heplots::covEllipses(d, col=colTr.('grey35', 0.8), lwd=1, level=0.95, labels='', center.pch='', method='mcd', add=T)  # 'mve'
+  ## heplots::covEllipses(d, col=col_tr.('grey35', 0.8), lwd=1, level=0.95, labels='', center.pch='', method='mcd', add=T)  # 'mve'
   draw_ellipse <- function(...) {  # Minimum Covariance Determinant (MCD)
     tmp <- try(robustbase::covMcd(d)$cov, silent = T)
     elli95 <- {if (nrow(d) > 13 && !'try-error' %in% class(tmp)) tmp else cov(d)} %>%
               ellipse::ellipse(., centre = Cnt, level = 0.95, npoints = 200) %>% as_tibble(.)
-    lines(elli95, col = colTr. ('black', 0.35), lwd = 1.0)
+    lines(elli95, col = col_tr. ('black', 0.35), lwd = 1.0)
     if (!is.null(x_lr) && length(x_lr) == 2) {  # y-range of 95% CI corresponding to your interested x-range
       el1 <- elli95[1:100, ]
       el2 <- elli95[101:200, ]
@@ -1450,7 +1437,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
     densCols(x, y, colramp = colorRampPalette(c('grey90', RColorBrewer::brewer.pal(9, colpal))))
   } else {
     str_sub(colpal, start = -1, end = -1) <- ''  # Remove the last 's' like 'Greys' --> 'Grey'
-    colpal %>% tolower(.) %>% colTr.(., 0.5)  # Sigle coloring for small data
+    colpal %>% tolower(.) %>% col_tr.(., 0.5)  # Sigle coloring for small data
   }
   if (li == TRUE) draw_linearFit()
   if (li == FALSE && el == TRUE) draw_ellipse()  # Modified ecllipse
@@ -1472,7 +1459,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
   }
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
   gp.()  # Get back to the default fear of using mar
-}  # corp.(iris[c(1, 4)], x_lr = c(5, 7))  corp.(iris[c(1, 4)], li = T, x_lr = c(5, 7))
+}  # corp.(iris[3:4])  corp.(iris[c(1, 4)], x_lr = c(5, 7))
 
 
 ## Boxplot oriented for quantile limit and full/half box == (2022-04-19) ========================
@@ -1517,7 +1504,7 @@ boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit,
       d_strip <- tibble(y = yL[[i]]) %>%
                  mutate(x = xPos[i]) %>%
                  mutate(pch = case_when(y >= c1[i] & y <= c5[i] ~ 21, TRUE ~ 4)) %>%
-                 mutate(col = case_when(pch == 21 ~ colTr.(bg_markL[[i]], 0.55), TRUE ~ colTr.('grey13', 0.8))) %>%
+                 mutate(col = case_when(pch == 21 ~ col_tr.(bg_markL[[i]], 0.55), TRUE ~ col_tr.('grey13', 0.8))) %>%
                  mutate(bg = bg_markL[[i]]) %>%
                  dplyr::filter(!is.na(y))
 
@@ -1537,13 +1524,13 @@ boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit,
   }
   ## Scale of half or full boxplot
   box_whiskers <- function(...) {
-    rect(xPos -leftW, c2, xPos +rightW, c4, border = 0, col = colTr.(col, 0.55))
-    segments(xPos -leftW, c3, xPos +rightW, c3, col = colTr.('grey13', 0.95), lwd = 3, lend = 'butt')
-    rect(xPos -leftW, c2, xPos +rightW, c4, border = colTr.('grey13', 0.95))
-    segments(xPos -leftW /2, c1, xPos +rightW/2, c1, col = colTr.('grey13', 0.95))
-    segments(xPos -leftW/2, c5, xPos +rightW/2, c5, col = colTr.('grey13', 0.95))
-    segments(xPos, c1, xPos, c2, lty = 'dashed', col = colTr.('grey13', 0.95))
-    segments(xPos, c4, xPos, c5, lty = 'dashed', col = colTr.('grey13', 0.95))
+    rect(xPos -leftW, c2, xPos +rightW, c4, border = 0, col = col_tr.(col, 0.55))
+    segments(xPos -leftW, c3, xPos +rightW, c3, col = col_tr.('grey13', 0.95), lwd = 3, lend = 'butt')
+    rect(xPos -leftW, c2, xPos +rightW, c4, border = col_tr.('grey13', 0.95))
+    segments(xPos -leftW /2, c1, xPos +rightW/2, c1, col = col_tr.('grey13', 0.95))
+    segments(xPos -leftW/2, c5, xPos +rightW/2, c5, col = col_tr.('grey13', 0.95))
+    segments(xPos, c1, xPos, c2, lty = 'dashed', col = col_tr.('grey13', 0.95))
+    segments(xPos, c4, xPos, c5, lty = 'dashed', col = col_tr.('grey13', 0.95))
   }
   ## Show values
   textFun <- function(...) {
@@ -1777,7 +1764,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
   ## Base plot
   col2 <- col %||% color2.() %>%
           color2.(., len = if (nrow(mat_avg) == 1) ncol(mat_avg) else nrow(mat_avg)) %>%
-          colTr.(., tr = 0.6)
+          col_tr.(., tr = 0.6)
   pos <- barplot(mat_avg, beside = !cum, horiz = xyChange, plot = F,
                  space = if (!cum) NULL else spacer,
                  width = if (!cum) c(rep(wid, nrow(mat_avg)), spacer) else 1
@@ -1799,7 +1786,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
     erW <- wid /4
     ord <- if (!xyChange) 1:4 else c(2, 1, 4, 3)
     walk(list(list(pos, erH, pos, erL)[ord], list(pos -erW, erH, pos +erW, erH)[ord], list(pos -erW, erL, pos +erW, erL)[ord]),
-         ~ segments(.[[1]], .[[2]], .[[3]], .[[4]], col = colTr.('grey13', 0.95)))
+         ~ segments(.[[1]], .[[2]], .[[3]], .[[4]], col = col_tr.('grey13', 0.95)))
   }
 
   ## Show values
@@ -1883,7 +1870,7 @@ sp. <- function(d, col = NULL, xlab = '', ylab = '', cut = F, conv = F, cex = 1.
           {if (is.null(col)) c(0, 0, 0) else .[[n_cyc.(col, 5)]]}
   par(mar = c(1, 1, 1, 1), family = jL.(names(d)))
   psych::pairs.panels(d, smooth = T, scale = T, density = T, ellipses = T, stars = T, lm = T, method = 'spearman', pch = 21, gap = 0.3,
-                      cex.cor = 1.3, cex.labels = cex, col = cols[1], bg = colTr.(cols[2], 0.5), hist.col = colTr.(cols[3], 0.8),
+                      cex.cor = 1.3, cex.labels = cex, col = cols[1], bg = col_tr.(cols[2], 0.5), hist.col = col_tr.(cols[3], 0.8),
                       cex.axis = ifelse(par('family') == 'Avenir Next', 1, 0.95)
   )
   mtext(xlab, side = 1, las = 1, cex = 1, family = jL.(xlab), outer = T, line = par('mar')[1] -1.00)
@@ -1924,7 +1911,7 @@ corMat. <- function(d, ...) {
 polygon. <- function(d, col = 'grey95', ...) {
   d <- list2tibble.(d) %>% {if (ncol(.) == 1) rowid_to_column(., 'index') else .}
   d_poly <- tibble(x = c(d[[1]], rev(d[[1]])), y = c(rep(0, nrow(d)), rev(d[[2]])))
-  polygon(d_poly, border = NA, col = colTr.(col, tr = 0.8))
+  polygon(d_poly, border = NA, col = col_tr.(col, tr = 0.8))
 }  # plt.(psd[2:3],add=0); polygon.(psd[2:3][30:50, ]); plt.(psd[2:3],add=2)
 
 
@@ -2014,7 +2001,7 @@ mat2. <- function(dt, xlim = NA, ylim = NA, xlab = '', ylab = '', ...) {  # matp
   plot.new()
   plot.window(xlim = xlim2, ylim = ylim2)
   for (i in seq_along(dty)) data.frame(x, dty[[i]]) %>% na.omit(.) %>% lines(., col = cols[i])
-  for (i in seq_along(dty)) data.frame(x, dty[[i]]) %>% na.omit(.) %>% points(., pch = 21, col = 'grey13', bg = colTr.(cols[i], 0.75))
+  for (i in seq_along(dty)) data.frame(x, dty[[i]]) %>% na.omit(.) %>% points(., pch = 21, col = 'grey13', bg = col_tr.(cols[i], 0.75))
   for (i in 1:2) {
     axis(side = 1, at = axisFun.(xlim2, n = 6)[[i]], labels = (i == 1), tcl = par('tcl') /i, lend = 'butt', padj = -0.2)
     axis(side = 2, at = axisFun.(ylim2, n = 6)[[i]], labels = (i == 1), tcl = par('tcl') /i, lend = 'butt')
@@ -2158,7 +2145,7 @@ har_mean. <- function(x) {  # harmonic mean
   }
 }
 median. <- function(x) {
-  if (is.atomic(x) && is.numeric(x) || is_time.(x)) {
+  if (is.atomic(x) && is.numeric(x) || all(is_time.(x))) {
     median(x, na.rm = T) %>% ymd.(.)
   } else if (is.list(x)) {
     list2tibble.(x) %>% map_df(~ if(is.numeric(.) | is_time.(.)) median(., na.rm = T) %>% ymd.(.) else NA_real_)
