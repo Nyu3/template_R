@@ -17,9 +17,9 @@ gp. <- function(...) {
 }
 
 
-## Auto install == (2022-01-05) ========================
+## Auto install == (2022-05-12) ========================
 query_lib. <- function(package_name, ...) {
-  new_list <- utils::installed.packages() %>% rownames %>% {package_name[!package_name %in% .]} %>% as.list
+  new_list <- utils::installed.packages() %>% rownames() %>% {package_name[!package_name %in% .]} %>% as.list()
   if (length(new_list) != 0) {
     purrr::walk(new_list, function(x) {
       cat('\n    trying to install', x, '...\n\n')
@@ -1000,7 +1000,7 @@ intersectX. <- function(df1, df2, ...) {
 }  # plt.(list(df1, df2)); abline(v = intersectX.(df1, df2))
 
 
-## Quick plot == (2022-05-11) ========================
+## Quick plot == (2022-05-12) ========================
 plt. <- function(d, ord = F, lty = 1, lwd = NULL, pch = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = NA, yline = NULL,
                  legePos = NULL, name = NULL, mar = par('mar'), add = 1, tcl = par('tcl'), type = 'l', grid = F,
                  PDF = T, multi = F, ...) {
@@ -1017,6 +1017,7 @@ plt. <- function(d, ord = F, lty = 1, lwd = NULL, pch = NULL, xlab = '', ylab = 
                map(~ .[!is.na(.)] %>% tibble(x = seq_along(.), y = .))
              }
     } else if ('list' %in% class(d)) {  # [[x1, y1], [x2, y2], ...]
+      d <- d[!sapply(d, is.null)]
       if (map_lgl(d, is.data.frame) %>% all()) {  # 1st; nested data.frame in list
         if (map_lgl(d, ~ ncol(.) == 2) %>% all()) {  # 2nd; [x,y]
           if (map_lgl(d, ~ map_lgl(., is.numeric) %>% all()) %>% all()) {  # 3rd; every data.frame is consisted of numeric values
@@ -1034,9 +1035,9 @@ plt. <- function(d, ord = F, lty = 1, lwd = NULL, pch = NULL, xlab = '', ylab = 
   if (length(dL) == 1) name <- 0
   if (is.numeric(type)) type <- c('l', 'p', 'pp', 'b', 'bb', 'h', 's')[n_cyc.(type, 7)]
   lty_get <- function(...) {
-    if (type %in% c('p', 'pp')) return(rep(0, length(dL)))
-    if (length(dL) == length(lty)) return(lty)
-    else return(rep(lty[1], length(dL)))
+    if (type %in% c('p', 'pp')) return(rep(0, length(dL)))  # deleted confusing dot legend
+    if (length(dL) <= length(lty)) return(lty)
+    else return(n_cyc.(lty, length(dL)))
   }
   lty <- lty_get()
   lwd <- lwd %||% whichSize.(ref = length(dL), vec = c(5, 10, 25, 50), mirror = c(1.5, 1.1, 0.8, 0.35))
@@ -2675,7 +2676,7 @@ area_part. <- function(d, LRx, ...) {  # dt is PDF, LRx is partial range of x
 }
 
 
-## Cumulative denstiy function == (2021-12-10) ========================
+## Cumulative denstiy function == (2022-05-12) ========================
 ## Note: this is the function for a PDF, not for a vector like quantile(iris[[1]], 0.5)
 ## Microtrac D50 of psd[2:3] was 9.99006 (almost near peak)
 ## ~ cdf.(psd[2:3], p = 0.36) ~ psd[[2]][whichNear.(vec = cumsum(psd[[3]]) /sum(psd[[3]]), ref = 0.37)]
@@ -2684,7 +2685,7 @@ cdf. <- function(x, y = NULL, p = NULL, norm = T, ...) {
   y_cum <- cumsum(0.5 *diff(x) *(y[-1] +y[-length(y)])) %>% c(0, .)
   if (norm == TRUE) y_cum <- (y_cum -min(y_cum)) /delta.(y_cum)
   out <- tibble(x = x, y = y_cum)
-  if (!is.null(p) && between(p, 0, 1)) {
+  if (!is.null(p) && all(between(p, 0, 1))) {
     out <- whichNear.(vec = out$y, ref = p) %>% out$x[.]  # return percentile (not quantile!!)
   }
   return(out)
@@ -2700,15 +2701,15 @@ aic2. <- function(model, ...) {
 }
 
 
-## Other Information Criteria (OIC ?) calculation == (2020-09-17) ========================
+## Other Information Criteria (OIC ?) calculation == (2022-05-12) ========================
 ## summary(mdl)$sigma
-rmse. <- function(model) if (is.null(model) || is.na(model)) NA else model %>% {sqrt(deviance(.) /(length(fitted(.)) -length(coef(.))))}
+rmse. <- function(model) if (is.null(model) || anyNA(model)) NA else model %>% {sqrt(deviance(.) /(length(fitted(.)) -length(coef(.))))}
 ## Deviance
-dev. <- function(model) if (is.null(model) || is.na(model)) NA else model %>% {log(2 *pi *deviance(.) /length(fitted(.))) +1}
+dev. <- function(model) if (is.null(model) || anyNA(model)) NA else model %>% {log(2 *pi *deviance(.) /length(fitted(.))) +1}
 ## Estimated relative error
-ere. <- function(model) if (is.null(model) || is.na(model)) NA else model %>% {deviance(.) /sum((fitted(.)) ^2)}
+ere. <- function(model) if (is.null(model) || anyNA(model)) NA else model %>% {deviance(.) /sum((fitted(.)) ^2)}
 ## BIC
-bic. <- function(model) if (is.null(model) || is.na(model)) NA else model %>% BIC()
+bic. <- function(model) if (is.null(model) || anyNA(model)) NA else model %>% BIC()
 ## deviance
 deviance. <- function(model) if (is.null(model) || is.na(model)) NA else model %>% deviance()
 
