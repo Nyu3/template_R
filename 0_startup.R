@@ -521,6 +521,16 @@ time2. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, y1, y2
 }  # time2.(economics)　time2.(economics, div = 'day', origin = T)
 
 
+## distinct & count == (2022-05-13) ========================
+distinc2. <- function(.d, .key = NULL, name = 'n', ...) {  # .key should be unique key like parts number
+  if (is.null(.key) || !.key %in% names(.d)) return(.d)
+  tmp1 <- .d %>% count(across(.key), name = name)
+  tmp2 <- .d %>% distinct(across(.key), .keep_all = T)
+  out <- left_join(tmp1, tmp2, by = all_of(.key))
+  return(out)
+}  # stars<-sample(seq(87),1000,T)%>%starwars[.,]; distinc2.(stars, 'name')
+
+
 ## HTML table == (2022-05-11) ========================
 html. <- function(d, ...) {
   query_lib.('DT')
