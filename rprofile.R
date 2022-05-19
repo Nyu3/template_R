@@ -66,9 +66,9 @@ formals(source)$chdir <- TRUE  # if (R.Version()$major < 4) TRUE else FALSE
 formals(unlist)$use.names <- FALSE
 
 
-## Access permission names == (2021-08-17) ========================
-researcher_names <- c('y-nishino', 'c-nakagawa', '')  # '' is assigned to Mac & Ubuntu
-production_names <- c('Microtrac', 't-hayakawa')
+## Access permission names == (2022-05-19) ========================
+heavy_usernames <- c('y-nishino', 'c-nakagawa', '')  # '' is assigned to Mac & Ubuntu
+light_usernames <- c('Microtrac', 't-hayakawa')
 yourname <- Sys.getenv('USERNAME')
 
 
@@ -90,9 +90,9 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
     eval(parse(text = script), envir = .nya0env)
   }
 
-  if (any(grepl(yourname, researcher_names))) {  # for heavy users (Win & JupyterLab)
+  if (any(grepl(yourname, heavy_usernames))) {  # for heavy users (Win & JupyterLab)
     purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))
-  } else if (yourname %in% production_names) {  # for light & PSD Win-users
+  } else if (yourname %in% light_usernames) {  # for light & PSD Win-users
     purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))  # c(3,3,3,3) --> readqadiv13/...
   } else {  # for light Win-users
     get_source()  # Only use of '0_startup.R'
