@@ -1,0 +1,17 @@
+## ٩(´ᗜ`)و (´-`) .｡oO (Start it up, 2019-07-17) |████████████████████████|
+## CAUTION: this is a bad habit in view of source share among your friend users, anyway.
+
+
+## Welcome message == (2020-10-24) ========================
+## CAUTION: JupyterLab allows neither cat(), print() nor message() in the welcome message on .Rprofile
+## https://stackoverflow.com/questions/37689694/real-time-printing-to-console-with-r-in-jupyter
+if (interactive()) cat('...Now loading...\n...')
+
+
+## Read the true .Rprofile == (2021-03-24) ========================
+filePATH <- 'https://github.com/Nyu3/template_R/blob/master/rprofile.R?raw=TRUE'
+script <- readLines(filePATH, encoding = 'UTF-8')
+eval(parse(text = script))
+
+## END ##
+

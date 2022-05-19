@@ -1,0 +1,48 @@
+## パッケージのダウンロード == (2022-05-19) ================================================
+## ダウンロードサイトはこちら: https://cran.r-project.org/bin/windows/base/old/
+## Windows XPでは，対応可能なversionはR 3.4.2 (Sep, 2017)までが限界だった．
+## XP縛りで上限がR 3.4.2である根拠はこちら: http://r.789695.n4.nabble.com/R-3-4-4-internet-access-fails-on-Windows-XP-td4749000.html
+## 次に，
+## Windows XPならば，パッケージ >> CRANミラーサイトの設定 >> 一番下のセキュアではない(other mirrors)を選択 >> Japan (Tokyo)
+## Windows10ならば，パッケージ >> CRANミラーサイトの設定 >> Japan (Yonezawa) [https]
+## 以下をダウンロードする．
+## その前に，ショートカットアイコンを右クリック >> プロパティ >> 互換性 >> 「管理者としてこのプログラムを実行する」にチェック >> OK
+## そうすると，libraryフォルダをドキュメントに置くことなくC直下のProgram Files/R/R-3.6.0/libraryに追加できる．
+## ただし管理者実行をのちに外さないと，.Rファイルの投げ込み技が使えないので注意．
+    nya <- c('bindrcpp', 'changepoint', 'ellipse', 'extrafont', 'formattable', 'hablar', 'logKDE',
+             'minerva', 'minpack.lm', 'naturalsort','pracma', 'psych', 'robustbase',
+             'rrcov', 'scico', 'tibbletime', 'VGAM', 'viridis', 'writexl')
+    install.packages('devtools', dependencies = T)
+    install.packages('tidyverse', dependencies = T)
+    install.packages(nya, dependencies = T)
+    'extrafont'::font_import()  # かなり時間を喰う
+    'extrafont'::loadfonts(device = 'win')  # windowsFonts()に渡す. これにてfamily = 'Times New Roman', 'Yu Mincho Light'などが使えるようになる
+## M1だとtidyverseなどインストールできないときは，binaryモードで行う
+nya2 <- c('BiocManager', 'broom', 'devtools', 'remotes', 'rmarkdown', 'robustbase', 'vroom', 'xfun')
+for (i in seq_along(nya2)) install.packages(nya2[i], type = 'binary')
+
+
+
+## Rの起動オプション == (2022-05-12) ========================================================================
+## アイコンを右クリック >> プロパティ >> ショートカット >> リンク先
+## 以下に書き換える．起動時のライセンスや終了時の保存確認を省ける
+## (前) "C:\Program Files\R\R-3.6.3\bin\x64\Rgui.exe" --cd-to-userdocs
+## (後) "C:\Program Files\R\R-3.4.2\bin\i386\Rgui.exe" --quiet --no-save
+## カレントディレクトリもその下の「作業フォルダー(S)」に打ち込めば毎回そこから起動してくれるが，.Rprofileが置いてあるディレクトリを指定
+
+
+
+## 起動時にライブラリを仕込みとして読み込み == (2020-10-16) ================================================
+## 起動直後にもろもろ設定を済ましておく隠しファイル.Rprofileをデスクトップ上で作る．.RDataや.Rhisitoryは不要
+## そして，.RprofileはCドライブ中のprogram/R/~の中へ管理者権限より無理くり突っ込む
+## しかし，program/R/~内の変更は上書き禁止なので書き換えて保存できたと思っても反映されない．あくまでそこ以外のデスクトップ等で作業すること
+## 投げ込み型.Rではformals(source)['chdir'] <- list(FALSE) にしておかないと起動ディレクトリから動かず投げ込み元のデータ参照ができない
+
+
+## メモ: Windows OSのバージョン相違による環境パスについて ================================================
+## Sys.getenv('USERPROFILE')
+## Windows XPならば, file.path(Sys.getenv('USERPROFILE'), 'デスクトップ') or 'My Documents'
+## Windows 10ならば，file.path(Sys.getenv('USERPROFILE'), 'Desktop') or 'Documents'
+## いずれにせよSys.getenv('USERPROFILE')は共通して使える．Macはダメだが
+
+
