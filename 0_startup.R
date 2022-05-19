@@ -270,12 +270,12 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 }  # dt2time.(nya0)
 
 
-## Powerful copy & paste == (2022-05-10) ========================
+## Powerful copy & paste == (2022-05-19) ========================
 pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
   query_lib.(c('hablar', 'stringdist'))
   clip <- suppressWarnings(readr::clipboard()) %>%
           {.%||% stop('It\'s not a readable text ...\n\n', call. = F)} %>%
-          map_chr(~ str_replace_all(., '#DIV/0!|#N/A|NULL', 'NA'))
+          map_chr(~ str_replace_all(., '#DIV/0!|#VALUE!|#NAME?|#N/A|NA?|NULL', 'NA'))
   rowcol <- sum(str_count(clip, '\n') +1) %>% {c(., sum(str_count(clip, '\t')) / . +1)}
 
   if (vectorize == TRUE) return(clip)  # for lazy_args.(); map.(clip, ~ str_count(., ' ')) %>% {. > 2} %>% any --> TRUE
@@ -1288,38 +1288,39 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlab = '', ylab = '', col = 
 }  # hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
 
 
-## Pie chart for ratio == (2021-06-16) ========================
-pie. <- function(d, col = NULL, cex = 0.85, per = F, digit = 1, ...) {  # Only data.frame acceptable (to use column name at the center of pie)
-  dL <- dL_name <- list()
+## Pie chart for ratio == (2022-05-18) ========================
+pie. <- function(d, col = NULL, cex = 0.85, percent = F, digit = 1, cent_name = NULL,  ...) {
   if (is.data.frame(d)) {  # Only use categorical data
-    tf <- map_lgl(d, ~ is.character(.) | is.factor(.))
-    if (any(tf)) {
-      for (i in seq_along(which(tf))) {
-        dL[[i]] <- which(tf)[i] %>% d[[.]] %>% table %>% sort(., decreasing = T)
-        dL_name[[i]] <- which(tf)[i] %>% names
-      }
+    tab_cols <- map_lgl(d, ~ is.character(.) | is.factor(.))
+    num_cols <- map_lgl(d, ~ is.numeric(.))
+    if (sum(tab_cols) == 1 && sum(num_cols) == 0) {  # [ID]
+      vec <- d[tab_cols] %>% table %>% sort(., decreasing = T)
+    } else if (sum(tab_cols) == 1 && sum(num_cols) == 1) { # [ID, y]
+      vec <- d %>% group_by_if(tab_cols) %>%
+             summarise(sum = sum(get(names(d)[num_cols]))) %>%
+             pull(sum, get(names(d)[tab_cols]))
     } else {
       stop('The data must include categorical data...\n\n', call. = F)
     }
   } else {
     stop('The data must include categorical vector or data.frame...\n\n', call. = F)
   }
+
   ## plot
   par(mar = c(1, 2, 1, 2), ann = F)
-  for (i in seq_along(dL)) {
-    color <- color2.(col, len = length(dL[[i]]))
-    vals <- if (per) {dL[[i]] /sum(dL[[i]]) *100} %>% round(., digit) else as.numeric(dL[[i]])
-    names(dL[[i]]) <- names(dL[[i]]) %>% str_c(., '\n(', vals, ifelse(per, '%)\n', ')\n'))
-    pie(dL[[i]], col = color, border = 'grey13', clockwise = T, init.angle = 90, radius = 0.8, cex = cex)
-    par(new = T)
-    pie(dL[[i]], label = '', col = 'white', border = 'white', radius = 0.5)
-    Theta <- seq(- pi, pi, length = 350)
-    lines(0.5 *cos(Theta), 0.5 *sin(Theta), col = 'grey13')
-    text(0, 0, labels = str_c(dL_name[[i]], '\n(', sum(dL[[i]]), ')'), family = jL.(dL_name[[i]]))
-  }
+  color <- color2.(col, len = length(dL[[i]])) %>% col_tr.(tr = 0.8)
+  vals <- if (percent == TRUE) {vec /sum(vec) *100} %>% round(., digit) else as.numeric(vec)
+  names(vec) <- names(vec) %>% str_c(., '\n(', vals, ifelse(percent, '%)\n', ')\n'))
+  pie(vec, col = color, border = 'grey13', clockwise = T, init.angle = 90, radius = 0.8, cex = cex)
+  par(new = T)
+  pie(vec, label = '', col = 'white', border = 'white', radius = 0.5)
+  Theta <- seq(- pi, pi, length = 350)
+  lines(0.5 *cos(Theta), 0.5 *sin(Theta), col = 'grey13')
+  cent_name <- cent_name %||% names(d)[tab_cols]
+  text(0, 0, labels = str_c(cent_name, '\n(', sum(vec), ')'), family = jL.(cent_name))
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
   gp.()
-}  # pie.(iris[41:120,5], per = T)
+}  # pie.(iris[5])  pie.(iris[41:120,5], percent = T)
 
 
 ## Linear correlation plot == (2022-02-28) ========================
@@ -1709,7 +1710,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
 }  # box2.(iris, pareto = T)  box2.(USArrests, rot = 20, cut = T)  box2.(economics[1:50, ])  box2.(diamonds[1:300, 1:3], mark = 'color')
 
 
-## Bar plot == (2021-12-13) ========================
+## Bar plot == (2022-05-18) ========================
 barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NULL, val_onbar = F, elementChange = F,
                   xlab = '', ylab = '', ylim = c(0, NA), col = NULL, legePos = NULL, name = NULL, cex = NULL,
                   rot = 0, cex.digit = 0.7, ord = F, lege_ord = F, ...)  # val_onbar means to show values on bar or on error bar
@@ -1723,7 +1724,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
             d %>% as_tibble()
           }
         } else if (map_lgl(d, ~ is.character(.) | is.factor(.)) %>% sum() == 1) {  # [ID, y1, y2]
-          d %>% group_by_if(~ is.numeric(.) %>% `!`)  # very important for barp.(iris)
+          d %>% group_by_if(~ is.numeric(.) %>% `!`)  # very important for barp.(iris); see mat_avg for iris & d2
         } else {
           stop('The data has more than TWO character columns; delete them to 0 or 1...\n\n', call. = F)
         }
@@ -1773,16 +1774,14 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
   }
 
   ## Base plot
-  col2 <- col %||% color2.() %>%
-          color2.(., len = if (nrow(mat_avg) == 1) ncol(mat_avg) else nrow(mat_avg)) %>%
-          col_tr.(., tr = 0.6)
+  col2 <- color2.(col, len = if (nrow(mat_avg) == 1) ncol(mat_avg) else nrow(mat_avg)) %>% col_tr.(tr = 0.6)
   pos <- barplot(mat_avg, beside = !cum, horiz = xyChange, plot = F,
                  space = if (!cum) NULL else spacer,
                  width = if (!cum) c(rep(wid, nrow(mat_avg)), spacer) else 1
          ) %>% as.vector()
   pos_range <- {range(pos) +0.5 *c(-1, 1)} %>% delta.() %>% {. *0.05}  # Spread out by 5%
   pos_lim <- {range(pos) +0.5 *c(-1, 1)} %>% {if (!xyChange) c(.[1] -pos_range, .[2]) else c(.[1], .[2] +pos_range)}
-  bar_lim <- {if (!cum) erH else apply(mat_avg, 2, sum.)} %>%  # error bar or cumulative bar
+  bar_lim <- {if (!cum && !all(is.na(erH))) erH else apply(mat_avg, 2, sum.)} %>%  # error bar or cumulative bar
              {c(0, max.(.))} %>% pr.(., ylim, 0.13)
   par(mar = if (!xyChange) c(2.4, 4, 0.5, 1) else c(0.5, 4, 2.4, 1), mgp = if (!xyChange) c(0, 0.4, 0) else c(0, 0.2, 0), ann = F)
   plot.new()
@@ -1805,8 +1804,13 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
     digit <- delta.(unlist(mat_avg)) %>% {if (all(unlist(mat_avg) < 1)) 3 else whichSize.(ref = ., vec = c(50, 5, 1), c(0, 1, 2))}
   }
   if (!cum) {  # multi bar
-    textX <- if (!xyChange) pos else (if (val_onbar == T) mat_avg else erH) +diff(par('usr')[3:4]) *0.04
-    textY <- if (!xyChange) (if (val_onbar == T) mat_avg else erH) +diff(par('usr')[3:4]) *0.04 else pos
+    if (xyChange == FALSE) {
+      textX <- pos
+      textY <- (if (val_onbar == T) mat_avg else erH) +diff(par('usr')[3:4]) *0.04
+   } else {
+      textX <- (if (val_onbar == T) mat_avg else erH) +diff(par('usr')[1:2]) *0.04
+      textY <- pos
+   }
   } else {  # cumulative bar
     tmp <- as_tibble(mat_avg)  # very bothersome...
     for (i in seq(nrow(tmp))) tmp[i, ] <- as_tibble(mat_avg)[i, ] /2 +if (i == 1) 0 else sum.(as_tibble(mat_avg)[1:(i-1), ])
