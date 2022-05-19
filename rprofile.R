@@ -119,7 +119,7 @@ if (Sys.info()['sysname'] == 'Windows') {
 }
 
 
-## Hint message & delete objects == (2022-05-18) ========================
+## Hint message & delete objects == (2022-05-19) ========================
 tips <- "
    plt.(iris[4:5])
    plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
@@ -140,7 +140,8 @@ tips <- "
    html.(starwars)
 ...\n"
 
-if (interactive()) if (!yourname %in% production_names) cat(tips)
+if (interactive()) cat(tips)
+# if (interactive()) if (!yourname %in% production_names) cat(tips)
 
 remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must','production_names', 'researcher_names', 'skip_messages', 'tips', 'yourname'))
 
