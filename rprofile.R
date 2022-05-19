@@ -2,8 +2,9 @@
 
 
 ## Install vital packages if necessary == (2022-05-19) ========================
-pkgs_must <- c('bindrcpp', 'changepoint', 'devtools', 'ellipse', 'extrafont', 'formattable', 'hablar', 'logKDE', 'minerva', 'minpack.lm', 'naturalsort',
-               'pracma', 'psych', 'robustbase', 'rrcov', 'scico', 'tibbletime', 'tidyverse', 'VGAM', 'viridis', 'writexl')
+pkgs_must <- c('bindrcpp', 'changepoint', 'devtools', 'ellipse', 'extrafont', 'formattable', 'hablar', 'logKDE', 'minerva',
+               'minpack.lm', 'naturalsort', 'pracma', 'psych', 'robustbase', 'rrcov', 'scico', 'tibbletime', 'tidyverse',
+               'VGAM', 'viridis', 'writexl')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
 if (sum(pkgs_lack) > 0) {
   for (i in seq_along(which(pkgs_lack))) {
@@ -67,8 +68,8 @@ formals(unlist)$use.names <- FALSE
 
 
 ## Access permission names == (2022-05-19) ========================
-heavy_usernames <- c('y-nishino', 'c-nakagawa', '')  # '' is assigned to Mac & Ubuntu
-light_usernames <- c('Microtrac', 't-hayakawa')
+heavy_usernames <- c('y-nishino', 'c-nakagawa', 'Microtrac', 't-hayakawa', '')  # '' is assigned to Mac & Ubuntu
+light_usernames <- c('john-doe')  # a subject for an experiment by readqadiv13
 yourname <- Sys.getenv('USERNAME')
 
 
@@ -91,11 +92,11 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   }
 
   if (any(grepl(yourname, heavy_usernames))) {  # for heavy users (Win & JupyterLab)
-    purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))
+    purrr::walk2(.x = c(1,2,2,2), .y = 1:4, ~ get_source(url_no = .x, file_no = .y))
   } else if (yourname %in% light_usernames) {  # for light & PSD Win-users
     purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))  # c(3,3,3,3) --> readqadiv13/...
-  } else {  # for light Win-users
-    get_source()  # Only use of '0_startup.R'
+  } else {  # Only use of '0_startup.R'
+    get_source()
   }
   remove('get_source')
 }
@@ -141,8 +142,7 @@ tips <- "
 ...\n"
 
 if (interactive()) cat(tips)
-# if (interactive()) if (!yourname %in% production_names) cat(tips)
 
-remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must','production_names', 'researcher_names', 'skip_messages', 'tips', 'yourname'))
+remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must','heavy_usernames', 'light_usernames', 'skip_messages', 'tips', 'yourname'))
 
 ## END ##
