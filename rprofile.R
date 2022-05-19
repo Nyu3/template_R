@@ -67,12 +67,12 @@ formals(unlist)$use.names <- FALSE
 
 
 ## Access permission names == (2021-08-17) ========================
-researcher_names <- c('y-nishino', '', 'c-nakagawa')  # '' is assigned to Mac & Ubuntu
+researcher_names <- c('y-nishino', 'c-nakagawa', '')  # '' is assigned to Mac & Ubuntu
 production_names <- c('Microtrac', 't-hayakawa')
 yourname <- Sys.getenv('USERNAME')
 
 
-## Calling basic script == (2021-08-17) ========================
+## Calling basic script == (2022-05-19) ========================
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R_script', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
@@ -93,7 +93,7 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   if (any(grepl(yourname, researcher_names))) {  # for heavy users (Win & JupyterLab)
     purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))
   } else if (yourname %in% production_names) {  # for light & PSD Win-users
-    purrr::walk2(c(3,3,3,3), 1:4, ~ get_source(url_no = .x, file_no = .y))
+    purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))  # c(3,3,3,3) --> readqadiv13/...
   } else {  # for light Win-users
     get_source()  # Only use of '0_startup.R'
   }
