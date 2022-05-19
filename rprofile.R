@@ -1,9 +1,9 @@
 ## ٩(´ᗜ`)و (´-`) .｡oO (the script for .Rprofile, 2021-03-24) |████████████████████████|
 
 
-## Install vital packages if necessary == (2021-03-23) ========================
-pkgs_must <- c('bindrcpp', 'changepoint', 'devtools', 'DT', 'ellipse', 'extrafont', 'hablar', 'logKDE', 'minerva', 'minpack.lm', 'naturalsort',
-               'pracma', 'psych', 'robustbase', 'tidyverse', 'VGAM', 'viridis', 'vroom')
+## Install vital packages if necessary == (2022-05-19) ========================
+pkgs_must <- c('bindrcpp', 'changepoint', 'devtools', 'ellipse', 'extrafont', 'formattable', 'hablar', 'logKDE', 'minerva', 'minpack.lm', 'naturalsort',
+               'pracma', 'psych', 'robustbase', 'rrcov', 'scico', 'tibbletime', 'tidyverse', 'VGAM', 'viridis')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
 if (sum(pkgs_lack) > 0) {
   for (i in seq_along(which(pkgs_lack))) {
@@ -119,7 +119,7 @@ if (Sys.info()['sysname'] == 'Windows') {
 }
 
 
-## Hint message & delete objects == (2022-02-14) ========================
+## Hint message & delete objects == (2022-05-18) ========================
 tips <- "
    plt.(iris[4:5])
    plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
@@ -136,7 +136,7 @@ tips <- "
    barp.(iris, cum = T, xyChange = T)
    sp.(iris, col = 3)
    stats.(iris)
-   pie.(iris[41:120,5], per = T)
+   pie.(iris[41:120,5], percent = T)
    html.(starwars)
 ...\n"
 
