@@ -3,7 +3,7 @@
 
 ## Install vital packages if necessary == (2022-05-19) ========================
 pkgs_must <- c('bindrcpp', 'changepoint', 'devtools', 'ellipse', 'extrafont', 'formattable', 'hablar', 'logKDE', 'minerva', 'minpack.lm', 'naturalsort',
-               'pracma', 'psych', 'robustbase', 'rrcov', 'scico', 'tibbletime', 'tidyverse', 'VGAM', 'viridis')
+               'pracma', 'psych', 'robustbase', 'rrcov', 'scico', 'tibbletime', 'tidyverse', 'VGAM', 'viridis', 'writexl')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
 if (sum(pkgs_lack) > 0) {
   for (i in seq_along(which(pkgs_lack))) {
