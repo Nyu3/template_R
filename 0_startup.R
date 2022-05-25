@@ -166,9 +166,9 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
 }
 
 
-## Set arguments in the function which you're trying to improve == (2021-03-25) ========================
+## Set arguments in the function which you're trying to improve == (2022-05-20) ========================
 lazy_args. <- function(...) {  # Needed to copy a concerned argments in advance
-  chrs <- pp.(vectorize = T)
+  chrs <- pp.(vectorize = T) %>% str_split('\n') %>% .[[1]]
   lazy_do <- function(char, ...) {
     ## Delete 'name <- function(' part
     if(str_detect(char, 'function')) char <- str_locate(char, 'function\\(') %>% .[2] %>% {str_sub(char, . +1, str_length(char))}
@@ -176,7 +176,7 @@ lazy_args. <- function(...) {  # Needed to copy a concerned argments in advance
     if (str_detect(char, '#')) char <- str_locate(char, '#') %>% .[2] %>% {str_sub(char, 1, . -1)}
     ## Replace colon to semicolon
     chr2 <- gsub(',', ';', char) %>% gsub('\\{|\\}|\\.\\.\\.)', '', .) %>% gsub('vec;|x;|d;|df;|dt;|dL;', '', .) %>%
-            str_squish(.) %>%
+            str_squish() %>%
             gsub('c\\(NA;', 'c\\(NA,', .) %>% gsub('; NA\\)', ', NA\\)', .)
     semicolon_locate <- str_locate_all(chr2, '; [:digit:]') %>% {.[[1]][, 1]}
     if (length(semicolon_locate) != 0) for (i in semicolon_locate) str_sub(chr2, start = i, end = i) <- ','
@@ -270,12 +270,12 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 }  # dt2time.(nya0)
 
 
-## Powerful copy & paste == (2022-05-19) ========================
+## Powerful copy & paste == (2022-05-20) ========================
 pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
   query_lib.(c('hablar', 'stringdist'))
   clip <- suppressWarnings(readr::clipboard()) %>%
           {.%||% stop('It\'s not a readable text ...\n\n', call. = F)} %>%
-          map_chr(~ str_replace_all(., '#DIV/0!|#VALUE!|#NAME?|#N/A|NA?|NULL', 'NA'))
+          map_chr(~ str_replace_all(., '#DIV/0! |#NAME\\?|#N/A|NA\\?|#NULL!|#NUM!|#REF!|#VALUE!', 'NA'))
   rowcol <- sum(str_count(clip, '\n') +1) %>% {c(., sum(str_count(clip, '\t')) / . +1)}
 
   if (vectorize == TRUE) return(clip)  # for lazy_args.(); map.(clip, ~ str_count(., ' ')) %>% {. > 2} %>% any --> TRUE
@@ -1010,7 +1010,7 @@ intersectX. <- function(df1, df2, ...) {
 }  # plt.(list(df1, df2)); abline(v = intersectX.(df1, df2))
 
 
-## Quick plot == (2022-05-12) ========================
+## Quick plot == (2022-05-26) ========================
 plt. <- function(d, ord = F, lty = 1, lwd = NULL, pch = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = NA, yline = NULL,
                  legePos = NULL, name = NULL, mar = par('mar'), add = 1, tcl = par('tcl'), type = 'l', grid = F,
                  PDF = T, multi = F, ...) {
@@ -1047,6 +1047,7 @@ plt. <- function(d, ord = F, lty = 1, lwd = NULL, pch = NULL, xlab = '', ylab = 
   lty_get <- function(...) {
     if (type %in% c('p', 'pp')) return(rep(0, length(dL)))  # deleted confusing dot legend
     if (length(dL) <= length(lty)) return(lty)
+    if (length(lty) == 1) return(rep(lty, length(dL)))
     else return(n_cyc.(lty, length(dL)))
   }
   lty <- lty_get()
@@ -1474,7 +1475,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
 }  # corp.(iris[3:4])  corp.(iris[c(1, 4)], x_lr = c(5, 7))
 
 
-## Boxplot oriented for quantile limit and full/half box == (2022-04-19) ========================
+## Boxplot oriented for quantile limit and full/half box == (2022-05-20) ========================
 boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit, mark, col, name, xlab, ylab, ...) {
   if (cut == TRUE) {
     for (i in seq(nrow(tnL))) {
@@ -1494,10 +1495,10 @@ boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit,
   if (!is.null(mark)) {
     markL <- tnL[[3]] %>% set_names(tnL[[1]])
     lvs <- markL %>% unlist() %>% unique()
-    color_lvs <- n_distinct(markL[[1]]) %>% {if (. < 4) color2.()[seq(.)] else color2.(len = .)}
+    color_lvs <- rev(color2.())[seq_along(lvs)]  # color2.(len = length(lvs))
     bg_markL <- markL %>% map(function(x) map_chr(x, ~ {lvs %in% .} %>% color_lvs[.]))
   } else {
-    bg_markL <- map2(as.list(col), yL, ~ if_else(.x == '#FFFFFF00', 'grey13', .x) %>% rep(., times = length(.y)))
+    bg_markL <- map2(as.list(col), yL, ~ if_else(.x == '#FFFFFF00', 'grey13', .x) %>% rep(times = length(.y)))
   }
   xPos <- 2 *seq(length(yL)) -1  # NA is not omitted yet
   CX <- length.(yL) %>% max() %>% whichSize.(ref = ., vec = c(500, 100, 13, 4), c(0.2, 0.35, 0.7, 0.8))
@@ -1513,11 +1514,11 @@ boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit,
   ## for loop is needed because outlier isn't always just one ...
   points_outliers <- function(...) {
     for (i in seq_along(yL)) {
-      d_strip <- tibble(y = yL[[i]]) %>%
-                 mutate(x = xPos[i]) %>%
-                 mutate(pch = case_when(y >= c1[i] & y <= c5[i] ~ 21, TRUE ~ 4)) %>%
-                 mutate(col = case_when(pch == 21 ~ col_tr.(bg_markL[[i]], 0.55), TRUE ~ col_tr.('grey13', 0.8))) %>%
-                 mutate(bg = bg_markL[[i]]) %>%
+      d_strip <- tibble(x = xPos[i], y = yL[[i]]) %>%
+                 mutate(pch = case_when(y >= c1[i] & y <= c5[i] ~ 21, TRUE ~ 4),
+                        col = case_when(pch == 21 ~ col_tr.(bg_markL[[i]], 0.55), TRUE ~ col_tr.('grey13', 0.8)),
+                        bg = bg_markL[[i]]
+                 ) %>%
                  dplyr::filter(!is.na(y))
 
       if (jit == TRUE) {
@@ -1630,8 +1631,8 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
     d_mark <- d[mark]
     d <- d %>% select(-all_of(mark))
   }
-  tab_col <- d %>% select_if(~ is.character(.) | is.factor(.)) %>% names
-  num_col <- d %>% select_if(is.numeric) %>% names
+  tab_col <- d %>% select_if(~ is.character(.) | is.factor(.)) %>% names()
+  num_col <- d %>% select_if(is.numeric) %>% names()
   if(length(num_col) == 0) stop('The data does NOT include any numeric data...\n\n', call. = F)
   d <- d %>% select(!!tab_col, !!num_col)
   if (!is.null(mark)) d <- d %>% bind_cols(d_mark)
@@ -1664,8 +1665,8 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
         if (j == length(num_col) && !is.null(mark)) {
           dL[[i]] <- dL[[i]] %>% mutate(!!mark := map(NUMs, ~ select(., all_of(mark)) %>% pull()))# %>% .[!is.na(.)]))
         }
-      }
-    }
+      }  # END of for(j)
+    }  # END of for(i)
   }
 
   ## picking for selection is allowed only when factor column is one
@@ -1680,8 +1681,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
   for (i in seq_along(dL)) {
     tmp <- dL[[i]] %>% select(!NUMs)
     ## color marking
-    col2 <- {if(is.null(col)) NULL else if (length(col) > 1) col else 0} %>%
-            color2.(color = ., len = nrow(dL[[i]])) %>% set_names(tmp[[1]])
+    col2 <- color2.(col, len = nrow(dL[[i]])) %>% set_names(tmp[[1]])
     if (!is.null(name_marking) && !is.null(col_marking)) {
       for (ii in seq_along(col_marking)) col2[which(tmp[[1]] %in% name_marking[[ii]])] <- col_marking[[ii]]
     }
@@ -1696,8 +1696,8 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
         col2 <- match(names(col2), tnL[[1]]) %>% col2[.]  # re-order
       }
 
-      boxplot2.(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit, mark,
-                col = col2, name %||% tnL[[1]], xlab, ylab = ylab %||% num_col[j])
+      boxplot2.(tnL=tnL, type=type, jit=jit, val=val, wid=wid, ylim=ylim, mar=mar, rot=rot, cex=cex, cut=cut, digit=digit, mark=mark,
+                col=col2, name=name %||% tnL[[1]], xlab=xlab, ylab = ylab %||% num_col[j])
       if (length(c(tab_col, num_col)) > 2) {
         if (i == 1) mtext(num_col[j], side = 3, las = 1, cex = 1.3, family = jL.(num_col[j]), font = 2, line = par('mar')[3] +0.75)
         if (j == 1) mtext(names(dL)[i], side = 2, las = 3, cex = 1.3, family = jL.(names(dL)[i]), font = 2, line = par('mar')[2] +0.75)
@@ -1707,7 +1707,8 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
 
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
   gp.()
-}  # box2.(iris, pareto = T)  box2.(USArrests, rot = 20, cut = T)  box2.(economics[1:50, ])  box2.(diamonds[1:300, 1:3], mark = 'color')
+}  # box2.(iris, pareto = T)  box2.(USArrests, rot = 20, cut = T)  box2.(economics[1:50, ])  box2.(iris[1:300, 1:3], mark = 'color')
+
 
 
 ## Bar plot == (2022-05-18) ========================
