@@ -1207,9 +1207,9 @@ crp. <- function(d, lty = NULL, lwd = NULL, xlab = '', ylab = '', col = NULL, xl
 }  # crp.(iris[2:3], ext = T)
 
 
-## Histograms plot == (2021-08-22) ========================
+## Histograms plot == (2022-05-26) ========================
 hist. <- function(d, ord = F, bin = 'st', freq = T, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = c(0, NA),
-                  legePos = NULL, name = NULL, mar = par('mar'), plot = T, overlay = F, ...) {
+                  legePos = NULL, name = NULL, mar = par('mar'), plot = T, overlay = T, ...) {
   ## Cut data range by xlim
   ## Make the bin width (if vec is only integer, the ticks are positioned in the center of each bar)
   whatBreak <- function(vec) {
@@ -1258,7 +1258,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlab = '', ylab = '', col = 
   par(mar = mar, mgp = c(0, 0.4, 0), ann = F)
   if (overlay == FALSE) {
     for (i in seq_along(dL)) {
-      hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = xlim2, ylim = ylim2, col = col_tr.(col[i], 0.80), breaks = whatBreak(dL[[i]]))
+      hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = xlim2, ylim = ylim2, col = col_tr.(col[i], 0.75), breaks = whatBreak(dL[[i]]))
       for (i in 1:2) {
         axis(1, at=axisFun.(xlim2,n=5)[[i]], labels=(i==1), tcl=-par('tcl')/i, cex.axis=ifelse(yPos.(xlim2)>0.9,1,0.9), lend='butt', padj=-0.25)
         axis(2, at=axisFun.(ylim2,n=6)[[i]], labels=(i==1), tcl=-par('tcl')/i, cex.axis=ifelse(yPos.(ylim2)>0.9,1,0.9), lend='butt')
@@ -1269,7 +1269,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlab = '', ylab = '', col = 
     }
   } else {
     for (i in seq_along(dL)) {
-      hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = xlim2, ylim = ylim2, col = col_tr.(col[i], 0.80), breaks = whatBreak(dL[[i]]))
+      hist(dL[[i]], ann = F, axes = F, freq = freq, xlim = xlim2, ylim = ylim2, col = col_tr.(col[i], 0.75), breaks = whatBreak(dL[[i]]))
       par(new = if (length(dL) == 1) F else (if (i != length(dL)) T else F))
     }
     for (i in 1:2) {
