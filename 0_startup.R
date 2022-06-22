@@ -154,10 +154,11 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
   clean_data <- function(d) {
     out <- d %>%
            dplyr::filter(rowSums(is.na(.)) != ncol(.)) %>%
-           hablar::retype() %>%
+           select_if(colSums(is.na(.)) != nrow(.)) %>%
            dt2time.(., timeSort, timeFactor) %>%
-           mutate_if(., ~ is.character(.), ~ correctChr.(.)) %>%
-           select_if(colSums(is.na(.)) != nrow(.))
+           mutate_if(is.character, correctChr.) %>%
+           hablar::retype()
+
     return(out)
   }
   d <- if (is.data.frame(d)) clean_data(d) else map(d, clean_data) %>% {if (length(.) == 1) .[[1]] else .}  # just one sheet --> tibble
@@ -270,12 +271,12 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 }  # dt2time.(nya0)
 
 
-## Powerful copy & paste == (2022-05-20) ========================
+## Powerful copy & paste == (2022-06-20) ========================
 pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
   query_lib.(c('hablar', 'stringdist'))
   clip <- suppressWarnings(readr::clipboard()) %>%
           {.%||% stop('It\'s not a readable text ...\n\n', call. = F)} %>%
-          map_chr(~ str_replace_all(., '#DIV/0! |#NAME\\?|#N/A|NA\\?|#NULL!|#NUM!|#REF!|#VALUE!', 'NA'))
+          str_replace_all('#DIV/0!|#NAME\\?|#N/A|NA\\?|#NULL!|#NUM!|#REF!|#VALUE!', NA_character_)  # never apply 'NA' & NULL'
   rowcol <- sum(str_count(clip, '\n') +1) %>% {c(., sum(str_count(clip, '\t')) / . +1)}
 
   if (vectorize == TRUE) return(clip)  # for lazy_args.(); map.(clip, ~ str_count(., ' ')) %>% {. > 2} %>% any --> TRUE
@@ -310,9 +311,9 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
   ## make the data clean
   d <- d %>%
        set_names(names(d) %>% gsub('NA', 'X', .) %>% if_else(nchar(.) == 0, 'X', .) %>% make.unique(., sep = '_')) %>%
-       hablar::retype() %>%
        dt2time.(timeSort = F) %>%
-       mutate_if(~ is.character(.), ~ correctChr.(.)) %>%
+       mutate_if(is.character, correctChr.) %>%
+       hablar::retype() %>%
        select_if(colSums(is.na(.)) != nrow(.))
   return(d)
 }  # END of pp.()
@@ -521,16 +522,6 @@ time2. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, y1, y2
 }  # time2.(economics)　time2.(economics, div = 'day', origin = T)
 
 
-## distinct & count == (2022-05-13) ========================
-distinc2. <- function(.d, .key = NULL, name = 'n', ...) {  # .key should be unique key like parts number
-  if (is.null(.key) || !.key %in% names(.d)) return(.d)
-  tmp1 <- .d %>% count(across(.key), name = name)
-  tmp2 <- .d %>% distinct(across(.key), .keep_all = T)
-  out <- left_join(tmp1, tmp2, by = all_of(.key))
-  return(out)
-}  # stars<-sample(seq(87),1000,T)%>%starwars[.,]; distinc2.(stars, 'name')
-
-
 ## HTML table == (2022-05-11) ========================
 html. <- function(d, ...) {
   query_lib.('DT')
@@ -554,12 +545,12 @@ html. <- function(d, ...) {
 ## Quick check for basic statistics == (2022-02-15) ========================
 stats. <- function(d, transpose = F, split = F, ...) {
   if (is.atomic(d)) {
-    vecN <- substitute(d) %>% as.character(.) %>% {if (length(.) == 1) . else .[2]}  # Confirm; substitute(iris[[1]]) %>% as.character
+    vecN <- substitute(d) %>% as.character() %>% {if (length(.) == 1) . else .[2]}  # Confirm; substitute(iris[[1]]) %>% as.character
     d <- as_tibble(d) %>% set_names(vecN)
   } else if (is.list(d)) {
     d <- list2tibble.(d) %>% select_if(~ n_distinct(.) > 1)  # No column with the same value
   }
-  if (is.character(d) || is.factor(d) ) {
+  if (is.character(d) || is.factor(d)) {
     stop('Confirm data contents...\n\n', call. = F)
   }
   stats_names <- c('Avg', 'Proportional avg', 'Geometric avg', 'Harmonic avg', 'Median', 'X2.5', 'X97.5', 'Min', 'Max',
@@ -607,7 +598,7 @@ stats. <- function(d, transpose = F, split = F, ...) {
     if (transpose == TRUE) {
       stats_summmary <- as_tibble(cbind(names(stats_summmary)[-1], t(stats_summmary[-1]))) %>%
                         set_names(c('name', stats_summmary[[1]])) %>%
-                        hablar::retype(.)
+                        hablar::retype()
     }
     return(stats_summmary)
   }
@@ -619,6 +610,28 @@ stats. <- function(d, transpose = F, split = F, ...) {
   }
   return(out)
 }  # stats.(iris) %>% html.()  stats.(iris, transpose = T)  stats.(iris, transpose = T, split = T)
+
+
+## summary for counting & one function == (2022-06-16) ========================
+smry. <- function(.d, .key = NULL, .f = 'mean.', name = 'n', ...) {  # .key should be unique key like parts number
+  query_lib.('naturalsort')
+  if (str_detect(.f, 'mean|ave')) .f <- 'mean.'
+  if (str_detect(.f, 'sd|std|stdev')) .f <- 'sd.'
+  if (str_detect(.f, '\\(x\\)|\\(x,')) .f <- str_c('function(x) {', .f, '}') %>% as.formula()
+
+  tab_col <- .key %||% {
+               map_lgl(.d, ~ is.character(.) | is.factor(.)) %>%
+               names(.d)[.] %>%
+               choice.(note = 'What\'s [ID] ?', chr = T, one = T)
+             }
+  if (is.null(tab_col)) return(.d)
+
+  tmp1 <- .d %>% count(across(all_of(tab_col)), name = name) %>%
+          .[naturalsort::naturalorder(.[[1]]), ]
+  tmp2 <- .d %>% group_by(across(all_of(tab_col))) %>% summarise_all(.f = get(.f))
+  out <- left_join(tmp1, tmp2, by = all_of(.key))
+  return(out)
+}  # .d<-sample(seq(87),1000,T)%>%starwars[.,]; smry.(.d, .f = 'mean')  smry.(iris, .f = 'quantile(x, 0.5)/mean.(x)')
 
 
 ## Search for the nearest number of which the target vector is almost equal to the reference value == (2021-08-21) ============
@@ -654,15 +667,16 @@ jL. <- function(chr, ...) {  # 'systemfonts'::system_fonts()$family %>% unique()
 }  # mtext(~, family = jL.(c(Xlab, Ylab)))
 
 
-## Correct abnormal Jap characters == (2020-09-17) ========================
+## Correct abnormal Jap characters == (2022-06-17) ========================
 hankana2zenkana. <- function(chr, ...) {
-  if (!is.character(chr)) chr <- as.character(chr)
+  if (str_detect(chr, '\\p{Hiragana}|\\p{Katakana}|\\p{Han}', negate = T) %>% any.()) return(chr)
   ## Converting semi-dakuten
   han <- c('ｶﾞ','ｷﾞ','ｸﾞ','ｹﾞ','ｺﾞ','ｻﾞ','ｼﾞ','ｽﾞ','ｾﾞ','ｿﾞ','ﾀﾞ','ﾁﾞ','ﾂﾞ','ﾃﾞ','ﾄﾞ','ﾊﾞ','ﾋﾞ','ﾌﾞ','ﾍﾞ','ﾎﾞ','ﾊﾟ','ﾋﾟ','ﾌﾟ','ﾍﾟ','ﾎﾟ')
   zen <- c('ガ','ギ','グ','ゲ','ゴ','ザ','ジ','ズ','ゼ','ゾ','ダ','ヂ','ヅ','デ','ド','バ','ビ','ブ','ベ','ボ','パ','ピ','プ','ペ','ポ')
-  for (i in seq_along(zen)) chr <- gsub(han[i], zen[i], chr)
-  ## Converting full width space or double spaces to half one
-  chr <- gsub('　|  ', ' ', chr)
+  for (i in seq_along(zen)) {
+    tmp_tf <- str_detect(chr, han[i]) %>% replace_na(replace = FALSE)
+    chr[tmp_tf] <- gsub(han[i], zen[i], chr[tmp_tf])
+  }
   ## Converting 1bite character
   out <- chartr('ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜｦﾝ｡｢｣､･ｦｧｨｩｪｫｬｭｮｯｰ',
                 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン。「」、・ヲァィゥェォャュョッー', chr)
@@ -670,27 +684,34 @@ hankana2zenkana. <- function(chr, ...) {
 }
 
 
-## Zenkaku convert for Mac/Win == (2021-03-24) ========================
+## Zenkaku Japanese & English convert for Mac/Win == (2022-06-17) ========================
 zenk. <- function(chr, ...) {
   query_lib.('stringi')
-  out <- chr %>% as.character(.) %>% gsub('\r\n', '', .) %>% gsub('  ', '', .) %>% { # gsub('ー', '-', .) # Avoid killing '\n' for box2.()
-           if (any.(validUTF8(.)) || Sys.getenv('OS') != '') . else iconv(., 'utf8', 'cp932')
-         } %>%
+  ng_chr <- c('\r\n', '　', '  ', 'ー') # never use '\n' for box2.() and '' which is applied for all strings
+  ok_chr <- c('', ' ', ' ', '-')
+  for (i in seq_along(ng_chr)) {
+    tmp_tf <- str_detect(chr, ng_chr[i]) %>% replace_na(replace = FALSE)
+    chr[tmp_tf] <- gsub(ng_chr[i], ok_chr[i], chr[tmp_tf])
+  }
+
+  out <- chr %>% {if (any.(validUTF8(.)) || Sys.getenv('OS') != '') . else iconv(., 'utf8', 'cp932')} %>%
          hankana2zenkana.() %>%
-         map_chr(~ stringi::stri_trans_nfkc(.))
+         stringi::stri_trans_nfkc()  # Zenkaku alphabet to hankaku one
   return(out)
 }
 
 
-## Reshape text by cutting space & common characters == (2022-03-14) ========================
+## Reshape text by cutting space & common characters == (2022-06-17) ========================
 correctChr. <- function(chr, ...) {
-  if (str_detect(chr, '[:alpha:]') %>% any.(.) %>% `!`) {
-    if (str_detect(chr, '%') %>% any.(.)) chr <- as.vector(chr) %>% parse_number(.) %>% {. /100}  # '12.3%'
-    if (str_detect(chr, ',') %>% any.(.)) chr <- as.vector(chr) %>% gsub(',', '', .) %>% parse_number(.)  # "123,456,789", or "\1,000"
+  if (str_detect(chr, '\\p{Hiragana}|\\p{Katakana}|\\p{Han}', negate = T) %>% any.()) {  # only for alphabet or number
+    tf1 <- str_detect(chr, '%') %>% replace_na(replace = FALSE)
+    tf2 <- chr %>% {str_detect(., '[:digit:]') & str_detect(., ',')} %>% replace_na(replace = FALSE)
+    if (any.(tf1)) chr[tf1] <- chr[tf1] %>% as.vector() %>% parse_number() %>% {. /100}  # '12.3%'
+    if (any.(tf2)) chr[tf2] <- chr[tf2] %>% as.vector() %>% gsub(',', '', .)  # "123,456,789", or "\1,000"
   }
-  chr[chr %in% c('', '#N/A', 'NA', 'NULL')] <- NA_character_  # str_detect(chr, '') doesn't work well...
-  chr <- zenk.(chr)
-  return(chr)
+  out <- str_replace_all(chr, '#DIV/0!|#NAME\\?|NA|#N/A|NA\\?|NULL|#NULL!|#NUM!|#REF!|#VALUE!', NA_character_) %>%
+         zenk.(chr)
+  return(out)
 }
 
 
@@ -1626,6 +1647,7 @@ box2. <- function(d, type = 'half', jit = T, val = T, ord = T, wid = 0.65, ylim 
   ## d <- sample_n(diamonds[-8:-10], 200)
   ## Select data
   if (is.atomic(d)) d <- as_tibble(d) %>% set_names('x')
+  d <- list2tibble.(d)
   d <- time2.(d, div)
   if (!is.null(mark) && mark %in% names(d)) {
     d_mark <- d[mark]
@@ -1860,8 +1882,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
 ## Scatter plot marix (Non-parametric evaluation) == (2022-02-24) ================================================
 sp. <- function(d, col = NULL, xlab = '', ylab = '', cut = F, conv = F, cex = 1.3, ...) {  # (conv = T) means normalization of all data
   query_lib.('psych')
-  d <- list2tibble.(d) %>% mutate_if(~ is.numeric(.), ~ ifelse(. == -Inf | . == Inf, NA, .)) %>%  # For normalization to make it
-       mutate_if(is.character, as.factor) %>% .[complete.cases(.), ]  # Delete the row containing one NA at least
+  d <- list2tibble.(d) %>% clean2.(na0 = T) %>% mutate_if(is.character, as.factor) %>% mutate_if(is.factor, ~ as.numeric(.) -1)
   if (nrow(d) == 0) stop('    No available data...\n\n', call. = F)
   if (cut == TRUE) {
     d <- mutate_if(d, ~ is.numeric(.), function(vec) {
@@ -2037,17 +2058,23 @@ clean1. <- function(d, ...) {
   return(d[clean_row, ] %>% dplyr::select(!'iD'))
 }
 
-## Delete NA == (2021-09-03) ========================
-na0. <- function(d, ...) {
-  if ('data.frame' %in% class(d)) {  # d[complete.cases(d)]
-    out <- d %>% filter(rowSums(!is.na(.)) == ncol(.)) %>% select_if(colSums(is.na(.)) != nrow(.))
-  } else if (is.atomic(d)) {
-    out <- d[!is.na(d)]
+## Inf & NaN -> NA == (2022-06-10) ========================
+clean2. <- function(d, na0 = T, ...) {
+  if ('data.frame' %in% class(d)) {
+    out <- d %>%
+      mutate_if(is.numeric, ~ ifelse(. %in% c(NaN, -Inf, Inf), NA, .)) %>%
+      filter(rowSums(is.na(.)) != ncol(.)) %>%
+      select_if(colSums(is.na(.)) != nrow(.)) %>%
+      {if (na0 == TRUE) .[complete.cases(.), ] else .}
   } else {
     out <- d
   }
   return(out)
-}
+}  # tibble(x=c(NA,1:2,NA,4:5), y=c(NA, NA, NaN, Inf,1,2),z=rep(NA,6)) %>% clean2.(na0=F)
+
+
+## Omit undesirable values == (2022-06-09) ========================
+omit2. <- function(x) x[!is.na(x) & !is.nan(x) & !is.infinite(x)]  # c(NA, NaN, Inf, -Inf, 123) %>% omit2.()
 
 ## Multiple definition == (2019-01-10) ========================
 def. <- function(defnames, values) for (i in seq_along(defnames)) assign(defnames[i], values[[i]], envir = parent.frame())
@@ -2080,16 +2107,16 @@ scale. <- function(x, scale_range = c(0, 1)) {  # Normalization: [0,1], Standari
   }
 }  # scale.(iris) %>% box2.  scale.(iris, c(-1, 1)) %>% box2.
 
-## Short cut to kill bothersome etc. == (2022-01-18) ========================
-pmax. <- function(x) pmax(x, na.rm = T)
-pmin. <- function(x) pmin(x, na.rm = T)
+## Short cut to kill bothersome etc. == (2022-06-09) ========================
+pmax. <- function(x) omit2.(x) %>% pmax()
+pmin. <- function(x) omit2.(x) %>% pmin()
 any. <- function(x) as.logical(x) %>% any(., na.rm = T)
 ymd. <- function(x) if (is.POSIXct (x)) floor_date(x, 'day') %>% as.character() %>% gsub(' JST', '', .) else x
 range. <- function(x) {
   if (is.atomic(x) && is.numeric (x)) {
-    range(x, na.rm = T, finite = F)
+    omit2.(x) %>% range()
   } else if (is.list(x)) {
-    list2tibble.(x) %>% select_if(~ is.numeric(.)) %>% unlist(.) %>% range(x, na.rm = T, finite = F)
+    list2tibble.(x) %>% select_if(~ is.numeric(.)) %>% unlist() %>% omit2.() %>% range()
   } else {
     NA_real_
   }
@@ -2097,11 +2124,10 @@ range. <- function(x) {
 mean. <- function(x, trim = 0) {  # mean0.(rep(NA, 3))  mean0.(rep(NA_real_, 3))
   mean0. <- function(x, trim = 0) {
     if (is.atomic(x) && is.numeric(x) || is_time.(x) || is.logical(x)) {
-      mean(x, na.rm = T, trim) %>% ymd.(.)
+      omit2.(x) %>% mean(., trim = trim) %>% ymd.()
     } else {
       NA_real_
-    } %>%
-    ifelse(is.nan(.), NA_real_, .)
+    } %>% ifelse(is.nan(.), NA_real_, .)
   }
   if (is.atomic (x)) {
     mean0.(x, trim)
@@ -2113,9 +2139,9 @@ mean. <- function(x, trim = 0) {  # mean0.(rep(NA, 3))  mean0.(rep(NA_real_, 3))
 }
 prop_mean. <- function(x) {  # propotional mean
   if (is.atomic(x)) {
-    x[!is.na(x)] %>% {sum(. ^2) /sum(.)}
+    omit2.(x) %>% {sum(. ^2) /sum(.)}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {sum(. ^2) /sum(.)} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {sum(. ^2) /sum(.)} else NA_real_)
   } else {
     NA_real_
   }
@@ -2126,7 +2152,7 @@ geo_mean. <- function(x) {  # geometric mean
       if (any(x[!is.na(x)] <= 0)) {
         NA_real_
       } else {
-        x[!is.na(x)] %>% {sum(log(.)) /length(.)} %>% exp(.)
+        omit2.(x) %>% {sum(log(.)) /length(.)} %>% exp()
       }
     } else {
       NA_real_
@@ -2146,7 +2172,7 @@ har_mean. <- function(x) {  # harmonic mean
       if (any(x[!is.na(x)] == 0)) {
         NA_real_
       } else {
-        x[!is.na(x)] %>% {length(.) /sum(1 /.)}
+        omit2.(x) %>% {length(.) /sum(1 /.)}
       }
     } else {
       NA_real_
@@ -2162,24 +2188,24 @@ har_mean. <- function(x) {  # harmonic mean
 }
 median. <- function(x) {
   if (is.atomic(x) && is.numeric(x) || all(is_time.(x))) {
-    median(x, na.rm = T) %>% ymd.(.)
+    omit2.(x) %>% median() %>% ymd.()
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if(is.numeric(.) | is_time.(.)) median(., na.rm = T) %>% ymd.(.) else NA_real_)
+    list2tibble.(x) %>% map_df(~ if(is.numeric(.) | is_time.(.)) omit2.(.) %>% median() %>% ymd.() else NA_real_)
   } else {
     NA_real_
   }
 }
 percentile. <- function(x, probs = 0.50) {
   if (is.atomic(x) && is.numeric(x)) {
-    quantile(x, probs = probs, na.rm = T, name = F)
+    omit2.(x) %>% quantile(., probs = probs, name = F)
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) quantile(., probs = probs, na.rm = T, name = F) else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% quantile(., probs = probs, name = F) else NA_real_)
   } else {
     NA_real_
   }
 }
 max. <- function (x, Nth = 1) {
-  max0. <- function(x, Nth = 1) if (is.atomic(x) && is.numeric(x) || is_time.(x)) sort(x, decreasing = T) %>% .[Nth] %>% ymd.(.) else NA_real_
+  max0. <- function(x, Nth = 1) if (is.atomic(x) && is.numeric(x) || is_time.(x)) omit2.(x) %>% sort(., decreasing = T) %>% .[Nth] %>% ymd.() else NA_real_
   if (is.atomic(x)) {
     max0.(x, Nth)
   } else if (is.list(x)) {
@@ -2189,7 +2215,7 @@ max. <- function (x, Nth = 1) {
   }
 }
 min. <- function(x, Nth = 1) {
-  min0. <- function(x, Nth = 1) if (is.atomic(x) && is.numeric(x) || is_time.(x)) sort(x, decreasing = F) %>% .[Nth] %>% ymd.(.) else NA_real_
+  min0. <- function(x, Nth = 1) if (is.atomic(x) && is.numeric(x) || is_time.(x)) omit2.(x) %>% sort(., decreasing = F) %>% .[Nth] %>% ymd.() else NA_real_
   if (is.atomic(x)) {
     min0.(x, Nth)
   } else if (is.list(x)) {
@@ -2229,53 +2255,53 @@ min2. <- function(x, na = F) {
   }
 }
 sd. <- function(x) {
-  if (is.atomic(x) && is.numeric(x) || is_time.(x) || is.logical(x)) {
-    sd(x, na.rm = T)
+  if (is.atomic(x) && !(is.character(x) && !is.factor(x))) {
+    omit2.(x) %>% sd()
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.) | is.logical(.)) sd(., na.rm = T) else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.) | is.logical(.)) omit2.(.) %>% sd() else NA_real_)
   } else {
     NA_real_
   }
 }
 sd2. <- function(x) {  # robust deviation
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {median(abs(. -median(.))) /0.6745}
+    omit2.(x) %>% {median(abs(. -median(.))) /0.6745}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.)) .[!is.na(.)] %>% {median(abs(. -median(.))) /0.6745} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.)) omit2.(.) %>% {median(abs(. -median(.))) /0.6745} else NA_real_)
   } else {
     NA_real_
   }
 }
 sd_reg. <- function(x) {  # regular sd
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {sd.(.) /sqrt(mean.(.) *(length(.) -1))}
+    omit2.(x) %>% {sd.(.) /sqrt(mean.(.) *(length(.) -1))}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.)) .[!is.na(.)] %>% {sd.(.) /sqrt(mean.(.) *(length(.) -1))} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.)) omit2.(.) %>% {sd.(.) /sqrt(mean.(.) *(length(.) -1))} else NA_real_)
   } else {
     NA_real_
   }
 }
 var. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% var(., y = NULL, na.rm = T)
+    omit2.(x) %>% var(., y = NULL)
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.)) .[!is.na(.)] %>% var(., y = NULL, na.rm = T) else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.)) omit2.(.) %>% var(., y = NULL) else NA_real_)
   } else {
     NA_real_
   }
 }
 skew. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {(. -mean(.)) ^3 /sd(.) ^3} %>% mean(.)
+    omit2.(x) %>% {(. -mean(.)) ^3 /sd(.) ^3} %>% mean()
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {(. -mean(.)) ^3 /sd(.) ^3} %>% mean(.) else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {(. -mean(.)) ^3 /sd(.) ^3} %>% mean() else NA_real_)
   } else {
     NA_real_
   }
 }
 skew_reg. <- function(x) {
   skew_reg0. <- function(x) if (is.atomic(x) && is.numeric(x) && length(x[!is.na(x)]) > 2) {
-    x[!is.na(x)] %>% {skew.(.) *(length(.) -1) ^0.5 /(length(.) -2)}
+    omit2.(x) %>% {skew.(.) *(length(.) -1) ^0.5 /(length(.) -2)}
    } else {
     NA_real_
   }
@@ -2289,18 +2315,18 @@ skew_reg. <- function(x) {
 }
 kurt. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {(. -mean(.)) ^4 /sd(.) ^4} %>% mean(.)
+    omit2.(x) %>% {(. -mean(.)) ^4 /sd(.) ^4} %>% mean(.)
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {(. -mean(.)) ^4 /sd(.) ^4} %>% mean(.) else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {(. -mean(.)) ^4 /sd(.) ^4} %>% mean(.) else NA_real_)
   } else {
     NA_real_
   }
 }
 kurt_reg. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {kurt.(.) *(length(.) -1) /(length(.) ^2 -3 *length(.) +3)}
+    omit2.(x) %>% {kurt.(.) *(length(.) -1) /(length(.) ^2 -3 *length(.) +3)}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {kurt.(.) *(length(.) -1) /(length(.) ^2 -3 *length(.) +3)} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {kurt.(.) *(length(.) -1) /(length(.) ^2 -3 *length(.) +3)} else NA_real_)
   } else {
     NA_real_
   }
@@ -2308,9 +2334,9 @@ kurt_reg. <- function(x) {
 delta. <- function(x, unit = 'day') {
   delta0. <- function(x, unit = 'day') {
     if (is.atomic(x) && is.numeric(x)) {
-      range(x, na.rm = T) %>% diff() %>% as.numeric()
+      range.(x) %>% diff() %>% as.numeric()
     } else if (is.atomic(x) && is_time.(x)) {
-      range(x, na.rm = T) %>% diff() %>% time_length(., unit = unit) %>% as.numeric()
+      range.(x) %>% diff() %>% time_length(., unit = unit) %>% as.numeric()
     } else {
       NA_real_
     }
@@ -2325,15 +2351,15 @@ delta. <- function(x, unit = 'day') {
 }
 iqr. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
-    IQR(x, na.rm = T)
+    omit2.(x) %>% IQR()
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) IQR(., na.rm = T) else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% IQR() else NA_real_)
   } else {
     NA_real_
   }
 }
 mmr. <- function(x) {  # min-max ratio
-  mmr0. <- function(x) if (is.atomic(x) && is.numeric(x) && !all(is.na(x))) x[!is.na(x)] %>% {min(.) /max(.)} else NA_real_
+  mmr0. <- function(x) if (is.atomic(x) && is.numeric(x) && !all(is.na(x))) omit2.(x) %>% {min(.) /max(.)} else NA_real_
   if (is.atomic(x)) {
     mmr0.(x)
   } else if (is.list(x)) {
@@ -2344,27 +2370,27 @@ mmr. <- function(x) {  # min-max ratio
 }
 cv. <- function(x) {  # coefficient of variance
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {sd(.) /mean(.)}
+    omit2.(x) %>% {sd(.) /mean(.)}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.)) .[!is.na(.)] %>% {sd(.) /mean(.)} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.)) omit2.(.) %>% {sd(.) /mean(.)} else NA_real_)
   } else {
     NA_real_
   }
 }
 rms. <- function(x) {  # root mean square
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {sqrt(sum(. ^2)/length(.))}
+    omit2.(x) %>% {sqrt(sum(. ^2)/length(.))}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {sqrt(sum(. ^2)/length(.))} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {sqrt(sum(. ^2)/length(.))} else NA_real_)
   } else {
     NA_real_
   }
 }
 rmse_stats. <- function(x) {  # root mean squared error (not for model evaluation)
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {sqrt(sum((. -mean(.)) ^2)/length(.))}
+    omit2.(x) %>% {sqrt(sum((. -mean(.)) ^2)/length(.))}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {sqrt(sum((. -mean(.)) ^2)/length(.))} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {sqrt(sum((. -mean(.)) ^2)/length(.))} else NA_real_)
   } else {
     NA_real_
   }
@@ -2372,7 +2398,7 @@ rmse_stats. <- function(x) {  # root mean squared error (not for model evaluatio
 msle. <- function(x) {  # mean squared logarithmic error
   msle0. <- function(x) if (is.atomic(x) && is.numeric(x)) {
     if (min(x, na.rm = T) > -1) {
-      x[!is.na(x)] %>% {sum(log(1 +.) -log(1 +mean(.)))/length(.)}
+      omit2.(x) %>% {sum(log(1 +.) -log(1 +mean(.)))/length(.)}
     } else {
       NA_real_
     }
@@ -2387,26 +2413,26 @@ msle. <- function(x) {  # mean squared logarithmic error
 }
 mae. <- function(x) {  # mean absolute error
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {sum(abs(. -mean(.)))/length(.)}
+    omit2.(x) %>% {sum(abs(. -mean(.)))/length(.)}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {sum(abs(. -mean(.)))/length(.)} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {sum(abs(. -mean(.)))/length(.)} else NA_real_)
   } else {
     NA_real_
   }
 }
 ddi. <- function(x) {  # declining distribution index
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {sum(abs(. -mean(.))) *length(.) /(2 *(length(.) -1) *sum(.))}
+    omit2.(x) %>% {sum(abs(. -mean(.))) *length(.) /(2 *(length(.) -1) *sum(.))}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {sum(abs(. -mean(.))) *length(.) /(2 *(length(.) -1) *sum(.))} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {sum(abs(. -mean(.))) *length(.) /(2 *(length(.) -1) *sum(.))} else NA_real_)
   } else {
     NA_real_
   }
 }
 balance. <- function(x) {  # index of balance
   balance0. <- function(x) if (is.atomic(x) && is.numeric(x)) {
-    tmp <- x[!is.na(x)] %>% {. -median(.)}
-    tmp_posi <- tmp[tmp >= 0] %>% sum(.)
+    tmp <- omit2.(x) %>% {. -median(.)}
+    tmp_posi <- tmp[tmp >= 0] %>% sum()
     tmp_nega <- tmp[tmp < 0] %>% {-sum(.)}
     return((tmp_posi -tmp_nega) /(tmp_posi +tmp_nega))
   } else {
@@ -2423,7 +2449,7 @@ balance. <- function(x) {  # index of balance
 gini. <- function(x) {  # Gini coefficient
   gini0. <- function(x) {
     if (is.atomic(x) && is.numeric(x)) {
-      x <- x[!is.na(x)] %>% .[order(., decreasing = F)]
+      x <- omit2.(x) %>% .[order(., decreasing = F)]
       num <- 1:length(x)
       y <- cumsum(x)/sum(x)
       AB <- length(x)/2  # triangle
@@ -2445,18 +2471,18 @@ gini. <- function(x) {  # Gini coefficient
 ## Hurst exponent: https://ito-hi.blog.ss-blog.jp/2016-10-15
 hurst. <- function(x) {  # the trend keeping ability random ~ 0.5, plus regular ~ 0.5-1, minus ~ 0-0.5
   if (is.atomic(x)) {
-    x[!is.na(x)] %>% {pracma::hurstexp(., display = F)$Hs}
+    omit2.(x) %>% {pracma::hurstexp(., display = F)$Hs}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {pracma::hurstexp(., display = F)$Hs} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {pracma::hurstexp(., display = F)$Hs} else NA_real_)
   } else {
     NA_real_
   }
 }
 cf. <- function(x) {  # crest factor:= peak /RMS
   if (is.atomic(x) && is.numeric(x)) {
-    x[!is.na(x)] %>% {max(.) /rms.(.)}
+    omit2.(x) %>% {max(.) /rms.(.)}
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) .[!is.na(.)] %>% {max(.) /rms.(.)} else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) omit2.(.) %>% {max(.) /rms.(.)} else NA_real_)
   } else {
     NA_real_
   }
@@ -2465,7 +2491,7 @@ sfm. <- function(x) {  # spectral flatness measure := geometric mean /arithmetri
   sfm0. <- function(x) {
     if (is.atomic(x) && is.numeric(x)) {
       if (mean(x, na.rm = T) != 0) {
-        x[!is.na(x)] %>% {geo_mean.(.) /mean.(.)}
+        omit2.(x) %>% {geo_mean.(.) /mean.(.)}
       } else {
         NA_real_
       }
@@ -2489,7 +2515,7 @@ mcr. <- function(x, zero = F) {
   mcr0. <- function(x, zero) if (is.atomic(x) && is.numeric(x)) {
     target <- if (zero == TRUE) 0 else mean(x, na.rm = T)  # or zero crossing rate
   # case_when(x -target >= 0 ~ 1, TRUE ~ -1) %>% {. *lag(.)} %>% .[!is.na(.)] %>% {case_when(. < 0 ~ 1, TRUE ~ 0)} %>% mean
-    x[!is.na(x)] %>% {case_when(. >= target ~ 1, TRUE ~ -1)} %>% {mean((. -lag(.)) /2, na.rm = T)}
+    omit2.(x) %>% {case_when(. >= target ~ 1, TRUE ~ -1)} %>% {mean((. -lag(.)) /2, na.rm = T)}
   } else {
     NA_real_
   }
@@ -2537,16 +2563,16 @@ which.min. <- function(x, Nth = 1) {  # which.min0. (c (3,-10,5,-88), 1:2)
 }
 sum. <- function(x) {  # Note; sum function eats T/F
   if (is.atomic(x) && is.numeric(x) || is.logical(x)) {
-    sum(x, na.rm = T)
+    omit2.(x) %>% sum()
   } else if (is.list(x)) {
-    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.) | is.logical(.)) sum(., na.rm = T) else NA_real_)
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.) | is_time.(.) | is.logical(.)) omit2.(.) %>% sum() else NA_real_)
   } else {
     NA_real_
   }
 }
 length. <- function(x) {
   if (is.atomic(x)) {
-    x[!is.na(x)] %>% length(.)
+    omit2.(x) %>% length(.)
   } else {
     if (is.list(x)) sapply(x, function(y) y[!is.na(y)] %>% length(.)) else NA_real_
   }
@@ -2556,7 +2582,7 @@ n_factor. <- function(x) {
 }
 
 
-## dividing data into list with the size on 0~1 ratio == (2022-04-15) ========================
+## dividing data into list with the size on 0~1 ratio == (2022-05-31) ========================
 ## overlapping sliding window-based segmentation; imagine a trump sliding
 ## called by https://www.researchgate.net/publication/323935725_Analyzing_User_Emotions_via_Physiology_Signals
 ## proposed by https://www.fbs.osaka-u.ac.jp/labs/ishijima/FFT-09.html
@@ -2581,7 +2607,7 @@ data_slider. <- function(d, overlap = 0, block = 3, len = NULL, .f = NULL, .col 
   if (is.null(.f) == TRUE) {
     return(dL)  # return a divided raw data as list
   } else if (class(.f) == 'function') {
-    stop('Please make .f define in your namespace and input function name as character ...\n\n', call. = F)
+    stop('Please make .f define in your namespace and input function name as character like .f = \'f\' not .f = f ...\n\n', call. = F)
   } else {
     ## when using a function, you must point the column number that is calculated
     if (length(.col) > 1 || .col < 1 || .col > ncol(d) -1) stop('    Select one column...\n\n', call. = F)
