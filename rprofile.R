@@ -121,7 +121,7 @@ if (Sys.info()['sysname'] == 'Windows') {
 }
 
 
-## Hint message & delete objects == (2022-05-19) ========================
+## Hint message & delete objects == (2022-06-23) ========================
 tips <- "
    plt.(iris[4:5])
    plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
@@ -136,9 +136,10 @@ tips <- "
    box2.(time2.(economics[1:50, ], div = 'year'))
    barp.(iris, xyChange = T, rot = 25)
    barp.(iris, cum = T, xyChange = T)
+   pie.(iris[41:120,5], percent = T)
    sp.(iris, col = 3)
    stats.(iris)
-   pie.(iris[41:120,5], percent = T)
+   smry.(iris, .f = 'sd(x) / mean(x)')
    html.(starwars)
 ...\n"
 
