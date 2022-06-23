@@ -522,7 +522,7 @@ time2. <- function(d, div = NULL, origin = F, ...) {  # data form: [time, y1, y2
 }  # time2.(economics)　time2.(economics, div = 'day', origin = T)
 
 
-## HTML table == (2022-05-11) ========================
+## HTML table == (2022-06-23) ========================
 html. <- function(d, ...) {
   query_lib.('DT')
   if (is.atomic(d) && !is.null(names(d))) d <- as.list(d) %>% list2tibble.()  # Case with a vector with names created by sapply()
@@ -538,8 +538,13 @@ html. <- function(d, ...) {
   }
   d <- d %>% mutate_if(~ is.numeric(.), ~ num2chr(.))  # All data is character
 # d[is.na(d)] <- ''  # Printing blank instead of NA
-  DT::datatable(d, rownames = F, options = list(pageLength = 100), filter = 'top')
-}
+  DT::datatable(d, rownames = F, filter = 'top', extensions = c('Buttons'), 
+    options = list(pageLength = 100, lengthMenu = c(10, 20, 50),
+                   autoWidth = F, scrollX = T, scrollY = '500px', scrollCollapse = T,
+                   dom = 'Blfrtip', buttons = c('copy', 'excel', 'colvis')
+              )
+  )
+}  # html.(starwars)
 
 
 ## Quick check for basic statistics == (2022-02-15) ========================
@@ -612,26 +617,25 @@ stats. <- function(d, transpose = F, split = F, ...) {
 }  # stats.(iris) %>% html.()  stats.(iris, transpose = T)  stats.(iris, transpose = T, split = T)
 
 
-## summary for counting & one function == (2022-06-16) ========================
-smry. <- function(.d, .key = NULL, .f = 'mean.', name = 'n', ...) {  # .key should be unique key like parts number
+## summary for counting & one function == (2022-06-23) ========================
+smry. <- function(d, key = NULL, f = 'mean', name = 'n', ...) {  # .key should be unique key like parts number
   query_lib.('naturalsort')
-  if (str_detect(.f, 'mean|ave')) .f <- 'mean.'
-  if (str_detect(.f, 'sd|std|stdev')) .f <- 'sd.'
-  if (str_detect(.f, '\\(x\\)|\\(x,')) .f <- str_c('function(x) {', .f, '}') %>% as.formula()
+  f <- f %>% gsub('mean|ave', 'mean.', .) %>% gsub('sd|std|stdev', 'sd.', .)
+  if (str_detect(f, '\\(x\\)|\\(x,')) f <- str_c('function(x) ', f) %>% {eval(parse(text = .))}
 
-  tab_col <- .key %||% {
-               map_lgl(.d, ~ is.character(.) | is.factor(.)) %>%
-               names(.d)[.] %>%
+  tab_col <- key %||% {
+               map_lgl(d, ~ is.character(.) | is.factor(.)) %>%
+               names(d)[.] %>%
                choice.(note = 'What\'s [ID] ?', chr = T, one = T)
              }
-  if (is.null(tab_col)) return(.d)
+  if (is.null(tab_col)) return(d)
 
-  tmp1 <- .d %>% count(across(all_of(tab_col)), name = name) %>%
+  tmp1 <- d %>% count(across(all_of(tab_col)), name = name) %>%
           .[naturalsort::naturalorder(.[[1]]), ]
-  tmp2 <- .d %>% group_by(across(all_of(tab_col))) %>% summarise_all(.f = get(.f))
-  out <- left_join(tmp1, tmp2, by = all_of(.key))
+  tmp2 <- d %>% group_by(across(all_of(tab_col))) %>% summarise_all(.funs = f)
+  out <- left_join(tmp1, tmp2, by = all_of(key))
   return(out)
-}  # .d<-sample(seq(87),1000,T)%>%starwars[.,]; smry.(.d, .f = 'mean')  smry.(iris, .f = 'quantile(x, 0.5)/mean.(x)')
+}  # d<-sample(seq(87),1000,T)%>%starwars[.,]; smry.(d, f = 'sd(x) / mean(x)')  smry.(iris, f = 'quantile(x, 0.5)/mean(x)')
 
 
 ## Search for the nearest number of which the target vector is almost equal to the reference value == (2021-08-21) ============
