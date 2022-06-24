@@ -18,8 +18,9 @@ Others are; <br>
     box2.(time2.(economics[1:50, ], div = 'year'))
     barp.(iris, xyChange = T, rot = 25)
     barp.(iris, cum = T, xyChange = T)
+    pie.(iris[41:120,5], percent = T)
     sp.(iris, col = 3)
     stats.(iris)
-    pie.(iris[41:120,5], percent = T)
+    smry.(iris, .f = 'sd(x) / mean(x)')
     html.(starwars)
     ...
