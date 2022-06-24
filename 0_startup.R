@@ -271,12 +271,13 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 }  # dt2time.(nya0)
 
 
-## Powerful copy & paste == (2022-06-20) ========================
+## Powerful copy & paste == (2022-06-24) ========================
 pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
   query_lib.(c('hablar', 'stringdist'))
   clip <- suppressWarnings(readr::clipboard()) %>%
           {.%||% stop('It\'s not a readable text ...\n\n', call. = F)} %>%
-          str_replace_all('#DIV/0!|#NAME\\?|#N/A|NA\\?|#NULL!|#NUM!|#REF!|#VALUE!', NA_character_)  # never apply 'NA' & NULL'
+          str_replace_all('#DIV/0!|#NAME\\?|#N/A|NA\\?|#NULL!|#NUM!|#REF!|#VALUE!', NA_character_) %>%  # never apply 'NA' & NULL'
+          gsub('Exported data\n\n', '', .)  # for a copy by 'DT' html table
   rowcol <- sum(str_count(clip, '\n') +1) %>% {c(., sum(str_count(clip, '\t')) / . +1)}
 
   if (vectorize == TRUE) return(clip)  # for lazy_args.(); map.(clip, ~ str_count(., ' ')) %>% {. > 2} %>% any --> TRUE
