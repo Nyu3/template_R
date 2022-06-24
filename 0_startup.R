@@ -375,12 +375,12 @@ dLformer. <- function(d, ord = F, ...) {  # ord = T/F, or desirable order like c
         }
         d <- mutate_if(d, ~ is_time.(.), ~ abbre_time(.))
         dL <- d[timeTF] %>%
-              pull(.) %>%
-              naturalsort::naturalorder(.) %>%
+              pull() %>%
+              naturalsort::naturalorder() %>%
               d[., ] %>%
               split(., .[timeTF]) 
       } else {  # [ID1, ID2, ..., y1, y2, ...] --> [y1, y2, ...]
-        dL <- d[numTF] %>% as.list(.)
+        dL <- d[numTF] %>% as.list()
       }
     }
   } else {  # In case of list
@@ -547,7 +547,7 @@ html. <- function(d, ...) {
 }  # html.(starwars)
 
 
-## Quick check for basic statistics == (2022-02-15) ========================
+## Quick check for basic statistics == (2022-06-24) ========================
 stats. <- function(d, transpose = F, split = F, ...) {
   if (is.atomic(d)) {
     vecN <- substitute(d) %>% as.character() %>% {if (length(.) == 1) . else .[2]}  # Confirm; substitute(iris[[1]]) %>% as.character
@@ -564,7 +564,7 @@ stats. <- function(d, transpose = F, split = F, ...) {
                    'Index of balance', 'Gini coefficient', 'Hurst exponent', 'Crest factor', 'Specral flatness', 'Mean crossing rate',
                    'Total', 'Number')  # 'Regular sd', 'Regular skew', 'Regular kurt', 
   mini_stats <- function(d, transpose, ...) {  # min2.(dt, na = T)  max2.(dt, na = T)
-    stats_summmary <- d %>% {
+    stats_summary <- d %>% {
       bind_rows(
         mean.(.),
         prop_mean.(.),  # propotional mean
@@ -601,11 +601,12 @@ stats. <- function(d, transpose = F, split = F, ...) {
         length.(.)
       )} %>% mutate(stats = stats_names) %>% relocate(stats)
     if (transpose == TRUE) {
-      stats_summmary <- as_tibble(cbind(names(stats_summmary)[-1], t(stats_summmary[-1]))) %>%
-                        set_names(c('name', stats_summmary[[1]])) %>%
-                        hablar::retype()
+      stats_summary <- stats_summary %>%
+                       pivot_longer(cols= -1) %>%
+                       pivot_wider(names_from = stats, values_from = value) %>%
+                       rename(var_names := name)
     }
-    return(stats_summmary)
+    return(stats_summary)
   }
   tab_col <- d %>% select_if(~ is.character(.) | is.factor(.)) %>% names()
   if (split == TRUE && length(tab_col) == 1 && unique(d[tab_col]) %>% nrow(.) > 1) {
