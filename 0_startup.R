@@ -617,10 +617,12 @@ stats. <- function(d, transpose = F, split = F, ...) {
 }  # stats.(iris) %>% html.()  stats.(iris, transpose = T)  stats.(iris, transpose = T, split = T)
 
 
-## summary for counting & one function == (2022-06-23) ========================
+## summary for counting & one function == (2022-06-24) ========================
 smry. <- function(d, key = NULL, f = 'mean', name = 'n', ...) {  # .key should be unique key like parts number
   query_lib.('naturalsort')
-  f <- f %>% gsub('mean|ave', 'mean.', .) %>% gsub('sd|std|stdev', 'sd.', .)
+  f <- f %>% gsub('ave|average|mean|mean.', 'mean.', .) %>%
+             gsub('sd|sd.|std|stdev', 'sd.', .) %>%
+             gsub('quantile|quantile.|parcent|percent|percentile|percentile.', 'percentile.', .)
   if (str_detect(f, '\\(x\\)|\\(x,')) f <- str_c('function(x) ', f) %>% {eval(parse(text = .))}
 
   tab_col <- key %||% {
@@ -635,7 +637,7 @@ smry. <- function(d, key = NULL, f = 'mean', name = 'n', ...) {  # .key should b
   tmp2 <- d %>% group_by(across(all_of(tab_col))) %>% summarise_all(.funs = f)
   out <- left_join(tmp1, tmp2, by = all_of(key))
   return(out)
-}  # d<-sample(seq(87),1000,T)%>%starwars[.,]; smry.(d, f = 'sd(x) / mean(x)')  smry.(iris, f = 'quantile(x, 0.5)/mean(x)')
+}  # d<-sample(seq(87),1000,T)%>%starwars[.,]; smry.(d, f = 'sd(x) / mean(x)')  smry.(iris, f = 'percentile.(x, 0.5)/mean(x)')
 
 
 ## Search for the nearest number of which the target vector is almost equal to the reference value == (2021-08-21) ============
