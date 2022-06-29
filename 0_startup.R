@@ -548,7 +548,7 @@ html. <- function(d, ...) {
 }  # html.(starwars)
 
 
-## Quick check for basic statistics == (2022-06-24) ========================
+## Quick check for basic statistics == (2022-06-28) ========================
 stats. <- function(d, transpose = F, split = F, ...) {
   if (is.atomic(d)) {
     vecN <- substitute(d) %>% as.character() %>% {if (length(.) == 1) . else .[2]}  # Confirm; substitute(iris[[1]]) %>% as.character
@@ -556,9 +556,9 @@ stats. <- function(d, transpose = F, split = F, ...) {
   } else if (is.list(d)) {
     d <- list2tibble.(d) %>% select_if(~ n_distinct(.) > 1)  # No column with the same value
   }
-  if (is.character(d) || is.factor(d)) {
-    stop('Confirm data contents...\n\n', call. = F)
-  }
+  d <- d %>% select_if(~ !is.list(.) & !is_time.(.))
+  if (map_lgl(d, ~ is.character(.) | is.factor(.)) %>% all()) stop('Confirm data contents...\n\n', call. = F)
+
   stats_names <- c('Avg', 'Proportional avg', 'Geometric avg', 'Harmonic avg', 'Median', 'X2.5', 'X97.5', 'Min', 'Max',
                    'SD', 'Robust deviation', 'Skewness', 'Kurtosis',
                    'Range', 'IQR', 'Min-max ratio', 'CV', 'RMS', 'RMSE', 'MSLE', 'MAE', 'Declining distribution index',
@@ -619,27 +619,47 @@ stats. <- function(d, transpose = F, split = F, ...) {
 }  # stats.(iris) %>% html.()  stats.(iris, transpose = T)  stats.(iris, transpose = T, split = T)
 
 
-## summary for counting & one function == (2022-06-24) ========================
-smry. <- function(d, key = NULL, f = 'mean', name = 'n', ...) {  # .key should be unique key like parts number
+## summary for counting & one function == (2022-06-29) ========================
+smry. <- function(d, f = 'mean', name = 'n', div = NULL, ...) {
   query_lib.('naturalsort')
-  f <- f %>% gsub('ave|average|mean|mean.', 'mean.', .) %>%
-             gsub('sd|sd.|std|stdev', 'sd.', .) %>%
-             gsub('quantile|quantile.|parcent|percent|percentile|percentile.', 'percentile.', .)
-  if (str_detect(f, '\\(x\\)|\\(x,')) f <- str_c('function(x) ', f) %>% {eval(parse(text = .))}
+  d <- d %>% select_if(~ !is.list(.)) %>% time2.(div = div)
+  f0 <- f %>% gsub('ave|average|mean|mean\\.', 'mean.', .) %>%
+              gsub('sd|sd\\.|std|stdev', 'sd.', .) %>%
+              gsub('quantile|quantile\\.|parcent|percent|percentile|percentile\\.', 'percentile.', .)
+  if (str_detect(f0, '\\(x\\)|\\(x,')) f0 <- str_c('function(x) ', f0) %>% {eval(parse(text = .))}
 
-  tab_col <- key %||% {
-               map_lgl(d, ~ is.character(.) | is.factor(.)) %>%
-               names(d)[.] %>%
-               choice.(note = 'What\'s [ID] ?', chr = T, one = T)
-             }
-  if (is.null(tab_col)) return(d)
+  tab_col <- map_lgl(d, ~ is.character(.) | is.factor(.)) %>%
+             names(d)[.] %>%
+             choice.(note = 'What\'s [ID] ?', chr = T, one = F)
+
+  if (is.null(tab_col)) {  # [y1,y2,...]
+    out <- d %>% select_if(is.numeric) %>%
+           pivot_longer(cols = everything()) %>%
+           group_by(name) %>%
+           summarise_all(.funs = list(ave = mean, std = sd, range = delta., max = max., min = min.))
+    return(out)
+  }
 
   tmp1 <- d %>% count(across(all_of(tab_col)), name = name) %>%
           .[naturalsort::naturalorder(.[[1]]), ]
-  tmp2 <- d %>% group_by(across(all_of(tab_col))) %>% summarise_all(.funs = f)
+  if (map_lgl(d, is.numeric) %>% sum() == 1) {
+    tmp2 <- d %>% group_by(across(all_of(tab_col))) %>% select_if(is.numeric) %>% {
+              if (f != 'mean') {
+                summarise_all(., .funs = list(ave = mean, std = sd, range = delta., max = max., min = min., tmp = f0)) %>%
+                rename(!!f := tmp)
+              } else {
+                summarise_all(., .funs = list(ave = mean, std = sd, range = delta., max = max., min = min.))
+              }
+            }
+  } else {
+    tmp2 <- d %>% group_by(across(all_of(tab_col))) %>% select_if(is.numeric) %>%
+            summarise_all(.funs = f0)
+    cat('Casting, by = \"', f, '\"\n', sep = '')
+  }
+
   out <- left_join(tmp1, tmp2, by = all_of(key))
   return(out)
-}  # d<-sample(seq(87),1000,T)%>%starwars[.,]; smry.(d, f = 'sd(x) / mean(x)')  smry.(iris, f = 'percentile.(x, 0.5)/mean(x)')
+}  # d<-sample(seq(87),1000,T)%>%starwars[.,]; smry.(d, f = 'percentile.(x, 0.5)/mean(x)')  smry.(iris)  smry.(iris[1:4])
 
 
 ## Search for the nearest number of which the target vector is almost equal to the reference value == (2021-08-21) ============
