@@ -11,6 +11,7 @@ Others are; <br>
     crp.(iris[2:3])
     hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
     corp.(iris[3:4])
+    ellip.(iris)
     box2.(iris, rot = 20, pareto = T, cut = T)
     box2.(diamonds[1:1000, 1:3], mark = 'color')
     box2.(id2y.(diamonds[1:1000, 1:3]))
