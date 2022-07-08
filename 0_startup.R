@@ -432,23 +432,18 @@ id2y. <- function(d, ...) {  # ID: crush, y: vacuum
 }  # id2y.(iris[4:5])  id2y.(diamonds[1:3] %>% sample_n(1000)) %>% box2.
 
 
-## Split ID data into list in a tidy way == (2021-06-23) ========================
-split2. <- function(d, ...) {
+## Split ID data into list in a tidy way == (2022-07-07) ========================
+split2. <- function(d, nest = F, ...) {
   tabTF <- map_lgl(d, ~ is.character(.) | is.factor(.))
   numTF <- map_lgl(d, ~ is.numeric(.))
-  tab_col <- select_if(d, ~ is.character(.) | is.factor(.)) %>% names
-  num_col <- select_if(d, ~ is.numeric(.)) %>% names
-
-  if (sum(numTF) == 0) {
-    stop('The data does NOT include any numeric data...\n\n', call. = F)#stop('Try again with a ID data...\n\n', call. = F)
-  } else if (sum(tabTF) == 1) {  # [ID1, ID2, ... , y1, y2, ...]
-    split(d, d[tab_col[1]]) %>% map(~ .[!tabTF] %>% as_tibble())
-    split(d, d[tabTF]) %>% map(~ .[!tabTF] %>% as_tibble())
-
-  } else if (sum(tabTF) == 0){  # [y1, y2, ...]
-    as.list(d)
-  }
-}  # split2.(iris)  split2.(us_rent_income)  split2.(iris[4:5]) %>% list2tibble.()
+  tab_col <- names(d)[tabTF] %>% choice.(note = 'Factor', chr = T, one = T)
+  if (sum(numTF) == 0) return(d)  # only [ID1, ID2, ...]
+  if (nest == T && sum(tabTF) == 0) out <- d %>% nest(data = everything()) %>% ungroup()  # [y1, y2, ...]
+  if (nest == T && sum(tabTF) != 0) out <- d %>% group_by(across(all_of(tab_col))) %>% nest() %>% ungroup()  # [ID1, ID2, y1, y2, ...]
+  if (nest == F && sum(tabTF) == 0) return(d)
+  if (nest == F && sum(tabTF) != 0) out <- split(d, d[tab_col]) %>% map(~ select(., !tab_col))
+  return(out)
+}  # split2.(iris, nest = T)  split2.(us_rent_income)
 
 
 ## Split a data into more / less case == (2021-08-17) ========================
@@ -816,14 +811,11 @@ halfSeq. <- function(vec, ...) vec[-1] -diff(vec) /2  # Solution of bn = (an+1 -
 axisFun. <- function(XYlims, n = 5, ...) pretty(XYlims, n = n) %>% list(mainTicks = ., subTicks = halfSeq.(.))
 
 
-## Cyclic number if it's over range for the interactive input == (2020-06-26) ========================
+## Cyclic number if it's over range for the interactive input == (2022-07-07) ========================
 n_cyc. <- function(num, n_max, ...) {
-  if (length(num) == 1) {
-    out <- if (is.na(num)) NA else {num %% n_max} %>% ifelse(. != 0, ., n_max)
-  } else {
-    out <- num[!is.na(num)] %>% rep(., n_max) %>% .[1:n_max]
-  }
-  return(out)
+  num[!is.na(num)] <- sapply(num[!is.na(num)], function(x) {x %% n_max} %>% ifelse(. != 0, ., n_max))
+  if (length(num) != 1) num <- num[!is.na(num)] %>% rep(., n_max) %>% .[1:n_max]
+  return(num)
 }  # n_cyc.(11, 5) n_cyc.(1:3, 5) n_cyc.(c(1, NA, 9), 5)
 
     
@@ -927,9 +919,9 @@ legeX. <- function(ratio, ...) if (is.null(ratio) || is.na(ratio)) NULL else par
 legeY. <- function(ratio, ...) if (is.null(ratio) || is.na(ratio)) NULL else par('usr')[3] +diff(par('usr')[3:4]) *ratio
 
 
-## Easy legend == (2022-05-09) ========================
+## Easy legend == (2022-07-07) ========================
 legen2. <- function(name, legePos = NULL, col = NULL, lty = NULL, pch = NULL, cex = NULL, inv = NULL, ...) {
-  if (is.null(name) || 0 %in% name) return()
+  if (is.null(name) || 0 %in% name) return() else name <- as.character(name)  # no factor
   par(family = jL.(name))
   if (is.null(cex)) {
     Cex <- c(0.1, 1)  # Starters in the loop range
@@ -1373,7 +1365,7 @@ pie. <- function(d, col = NULL, cex = 0.85, percent = F, digit = 1, cent_name = 
 }  # pie.(iris[5])  pie.(iris[41:120,5], percent = T)
 
 
-## Linear correlation plot == (2022-02-28) ========================
+## Linear correlation plot == (2022-07-07) ========================
 ## NOTE.1  Regression analysis is strictly applicable to cause (x) and effect (y; random variable) on the assumption that x has NO error...
 ## NOTE.2  Correlation analysis sees BOTH x & y as random variables; thus don't use linear regression and prob. ellipse at the same time...
 ## Trivia.1  You'll see the cross points on the line and ellipse can draw y-axis parallel lines as tangent
@@ -1382,30 +1374,27 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
                   mar = par('mar'), lege = T, PDF = T, ...)
 {
   query_lib.(c('ellipse', 'robustbase'))
-  d <- list2tibble.(d) %>%
-       select_if(is.numeric) %>%
-       mutate_if(~ is.numeric(.), ~ ifelse(. == -Inf | . == Inf, NA, .)) %>%  # For normalization to make it
-       dplyr::filter(rowSums(is.na(.)) == 0)  # Omit the row including any NA
+  d <- list2tibble.(d) %>% select_if(is.numeric) %>% clean2.(na0 = F) %>% .[complete.cases(.), ]  # Omit the row including any NA
   if (nrow(d) == 0) stop('No available data...\n\n', call. = F)
   if (!ncol(d) %in% c(2, 3)) {
     d <- choice.(names(d), note = '[x,y] or [x,y,label] data', chr = F) %>% d[.]
   }
   def.(c('x', 'y'), list(d[[1]], d[[2]]))
 
-  if (is.character(col)) stop('Don\'t use color name like \'blue\'.  Use numbers 1 to 6, thank you.\n\n', call. = F)
+  if (is.character(col)) stop('Don\'t use color name like \'blue\'.  Use numbers 1 to 6\n\n', call. = F)
   colpal <- n_cyc.(col, 6) %>% c('Greys', 'Blues', 'Oranges', 'Purples', 'Reds', 'Greens')[.]
 
   ## elliplot::ellipseplot(iris[c(5, 1)], iris[c(5, 2)])
   mdl0 <- robustbase::lmrob(y ~x -1, na.action = na.exclude, setting = 'KS2014')  # robust::lmRob(y ~ x -1, na.action = na.exclude)
   mdl1 <- robustbase::lmrob(y ~x +1, na.action = na.exclude, setting = 'KS2014')  # robust::lmRob(y ~ x +1, na.action = na.exclude)
-  mdlNum <- map.(list(mdl0, mdl1), ~ summary(.) %>% .$sigma) %>% which.min(.)
+  mdlNum <- map_dbl(list(mdl0, mdl1), ~ summary(.) %>% .$sigma) %>% which.min()
   mdl <- list(mdl0, mdl1)[[mdlNum]]  # Choose better
   Coef <- list(c(0, coef(mdl0)), coef(mdl1))[[mdlNum]] %>% set_names(NULL)
   # Cor <- robust::covRob(d, corr = T)$cov[1, 2]  # No robust, including outliers; cor.test(x, y, method = 'pearson')$estimate
   # Cnt <- robust::covRob(d, corr = T)$center  # If Coef[2] ~ +/-0.01 and shows strong Cor, don't care because it's 1to1 relationship
   # Cor <- if (nrow(d) > 13) robustbase::covMcd(d, cor = T)$cor[1, 2] else cor(d)[1, 2]  # covMcd results are different for small data
   Cor <- cor.test(d[[1]], d[[2]], method = 'spearman', exact = F)$estimate
-  Cnt <- try(robustbase::covMcd(d, cor = T)$center, silent = T)
+  Cnt <- try(robustbase::covMcd(d, cor = T, alpha = 0.75)$center, silent = T)
   if ('try-error' %in% class(Cnt)) Cnt <- c(mean.(x), Coef[1] +Coef[2] *mean.(x))
 
   ## Legend position 1, 2, 3, 4 as quadrant
@@ -1425,7 +1414,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
   text3 <- function(text_pos) {
     Show <- function(x) ifelse(any.(Cnt > 10), 1, 2) %>% {sprintf(str_c('%.', ., 'f'), x)}
     Text1 <- bquote('(' *bar(italic(x)) *',' ~bar(italic(y)) *')' == '(' *.(Show(mean.(x))) *','  ~.(Show(mean.(y))) *')')
-    Text2 <- Coef[1] %>% {c(. > 0, . < 0, . == 0)} %>% which(.) %>%
+    Text2 <- Coef[1] %>% {c(. > 0, . < 0, . == 0)} %>% which() %>%
              list(
                bquote(hat(italic(y)) == .(sprintf('%.2f', Coef[2])) *italic(x) + .(sprintf('%.2f', Coef[1])) *phantom(')')),
                bquote(hat(italic(y)) == .(sprintf('%.2f', Coef[2])) *italic(x) ~ .(sprintf('%.2f', Coef[1])) *phantom(')')),
@@ -1473,22 +1462,22 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
     polygon(polygonX, polygonY, border = NA, col = col_tr.('grey95', tr = 0.8))
     abline(mdl, col = '#22222222', lwd = 3.5)  # KS2014 line
     if (!is.null(x_lr) & length(x_lr) == 2) {  # y-range of 95% CI corresponding to your interested x-range
-      whichNear.(qx, x_lr) %>% {c(min(lcl[.]), max(ucl[.]))} %>% set_names(c('(Min.95%CI)', '(Max.95%CI)')) %>% print(.)
+      whichNear.(qx, x_lr) %>% {c(min(lcl[.]), max(ucl[.]))} %>% set_names(c('(Min.95%CI)', '(Max.95%CI)')) %>% print()
     }
   }
   ## http://friendly.github.io/heplots/reference/covEllipses.html
   ## heplots::covEllipses(d, col=col_tr.('grey35', 0.8), lwd=1, level=0.95, labels='', center.pch='', method='mcd', add=T)  # 'mve'
   draw_ellipse <- function(...) {  # Minimum Covariance Determinant (MCD)
-    tmp <- try(robustbase::covMcd(d)$cov, silent = T)
+    tmp <- try(robustbase::covMcd(d, alpha = 0.75)$cov, silent = T)
     elli95 <- {if (nrow(d) > 13 && !'try-error' %in% class(tmp)) tmp else cov(d)} %>%
-              ellipse::ellipse(., centre = Cnt, level = 0.95, npoints = 200) %>% as_tibble(.)
-    lines(elli95, col = col_tr. ('black', 0.35), lwd = 1.0)
+              ellipse::ellipse(., centre = Cnt, level = 0.95, npoints = 200) %>% as_tibble()
+    lines(elli95, col = col_tr.('black', 0.35), lwd = 1.0)
     if (!is.null(x_lr) && length(x_lr) == 2) {  # y-range of 95% CI corresponding to your interested x-range
       el1 <- elli95[1:100, ]
       el2 <- elli95[101:200, ]
-      el1_range <- whichNear.(el1[[1]], x_lr) %>% el1[., 2] %>% range(.)
-      el2_range <- whichNear.(el2[[1]], x_lr) %>% el2[., 2] %>% range(.)
-      range(el1_range, el2_range) %>% set_names(c('(Min.95%CI)', '(Max.95%CI)')) %>% print(.)
+      el1_range <- whichNear.(el1[[1]], x_lr) %>% el1[., 2] %>% range()
+      el2_range <- whichNear.(el2[[1]], x_lr) %>% el2[., 2] %>% range()
+      range(el1_range, el2_range) %>% set_names(c('(Min.95%CI)', '(Max.95%CI)')) %>% print()
     }
   }
   ## plot
@@ -1497,9 +1486,8 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
   plot.window(xlim = xlim2, ylim = ylim2)
   Colcol <- if (nrow(d) >= 20) {
     densCols(x, y, colramp = colorRampPalette(c('grey90', RColorBrewer::brewer.pal(9, colpal))))
-  } else {
-    str_sub(colpal, start = -1, end = -1) <- ''  # Remove the last 's' like 'Greys' --> 'Grey'
-    colpal %>% tolower(.) %>% col_tr.(., 0.5)  # Sigle coloring for small data
+  } else {  # Sigle coloring for small data
+    str_sub(colpal, end = -2) %>% tolower() %>% col_tr.(., 0.5)  # Remove the last 's' like 'Greys' --> 'Grey' --> 'grey'
   }
   if (li == TRUE) draw_linearFit()
   if (li == FALSE && el == TRUE) draw_ellipse()  # Modified ecllipse
@@ -1522,6 +1510,78 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
   gp.()  # Get back to the default fear of using mar
 }  # corp.(iris[3:4])  corp.(iris[c(1, 4)], x_lr = c(5, 7))
+
+
+## Clustering by probability ellipse == (2022-07-08) ========================
+## [x,y,ID] preferable
+ellip. <- function(d, xlab = NULL, ylab = NULL, col = 1:6, legePos = NULL, fix = F, mar = par('mar'), PDF = T, ...) {
+  query_lib.(c('ellipse', 'robustbase'))
+  ## data nesting
+  d <- list2tibble.(d) %>% clean2.(na0 = F) %>% .[complete.cases(.), ] %>% split2.(nest = T)
+  if (map_lgl(d, ~ is.list(.)) %>% any() %>% `!`) stop('Use some data like [x,y,ID] ...\n\n', call. = F)
+
+  ## data alignment
+  num_cols <- select_if(d, is.list) %>% unnest(data) %>% ncol()
+  if (num_cols == 1) d <- d %>% mutate(data = map(data, ~ rowid_to_column(., var = 'ID')))
+  if (num_cols > 2) cat('CAUTION: only 1st & 2nd numeric data are used.\n')
+
+  ## color
+  if (is.character(col)) stop('Don\'t use color name like \'blue\'.  Use numbers 1 to 6\n\n', call. = F)
+  d <- d %>% mutate(colpal = n_cyc.(col, nrow(d)) %>% c('Greys', 'Reds', 'Blues', 'Greens', 'Oranges', 'Purples')[.])  # for brewer.pal()
+
+  ## xy labels 
+  xylabs <- select(d, data) %>% {.[[1]][[1]]} %>% names()
+  xlab <- xlab %||% xylabs[1]
+  ylab <- ylab %||% xylabs[2]
+
+  ## get ellipse info
+  make_elli <- function(xy) {  # Minimum Covariance Determinant (MCD)
+    def.(c('x', 'y'), list(xy[[1]], xy[[2]]))
+    Cnt <- try(robustbase::covMcd(xy, cor = T, alpha = 0.75)$center, silent = T)
+    tmp <- try(robustbase::covMcd(xy, alpha = 0.75)$cov, silent = T)
+    elli95 <- {if (nrow(xy) > 13 && !'try-error' %in% class(tmp)) tmp else cov(xy)} %>%
+              ellipse::ellipse(., centre = Cnt, level = 0.95, npoints = 200) %>% as_tibble()
+    return(elli95)
+  }
+  d <- skipMess.(d %>% mutate(ellipse = map(data, ~ make_elli(.))))
+
+  ## plot range
+  tmp <- d %>% select(ellipse) %>% unnest(everything())  #  ellipse > data range
+  def.(c('x0', 'y0'), list(tmp[[1]], tmp[[2]]))
+  if (between(min.(x0) /min.(y0), 0.9, 1.1) & between(max.(x0) /max.(y0), 0.9, 1.1) ) {  # When x & y differ slightly; keep the same scale
+    def.(c('xlim2', 'ylim2'), list(pr.(c(x0, y0), NA, 0.13), pr.(c(x0, y0), NA, 0.13)))
+  } else {  # When x & y differ largely; change proper scale to see easily
+    def.(c('xlim2', 'ylim2'), list(pr.(x0, NA, 0.13), pr.(y0, NA, 0.13)))
+  }
+  if (fix == TRUE) {  # Wnen the same scale on both x and y-axis is desired
+    def.(c('xlim2', 'ylim2'), list(range(xlim2, ylim2), range(xlim2, ylim2)))
+  }
+
+  ## plot
+  par(mar = mar, mgp = c(0, 0.4, 0), ann = F)
+  plot.new()
+  plot.window(xlim = xlim2, ylim = ylim2)
+  for (i in seq(nrow(d))) {
+    xy <- d %>% select(data) %>% .[[1]] %>% .[[i]]
+    Colcol <- densCols(xy, colramp = colorRampPalette(c(RColorBrewer::brewer.pal(7, d$colpal[i]))))
+    points(xy, pch = 19, lwd = 0.95, cex = 1.3, col = Colcol)
+  }
+  for (i in seq(nrow(d))) {
+    xy <- d %>% select(data) %>% .[[1]] %>% .[[i]]
+    el <- d %>% select(ellipse) %>% .[[1]] %>% .[[i]]
+    polygon.(el, col = str_sub(d$colpal[i], end = -2) %>% tolower() %>% col_tr.(., 0.15))
+  }
+  for (i in 1:2) {
+    axis(1, at=axisFun.(xlim2,n=5)[[i]], labels=(i==1), tcl=-par('tcl')/i, cex.axis=ifelse(yPos.(xlim2)>0.9,1,0.9), lend='butt', padj=-0.2)
+    axis(2, at=axisFun.(ylim2,n=5)[[i]], labels=(i==1), tcl=-par('tcl')/i, cex.axis=ifelse(yPos.(ylim2)>0.9,1,0.9), lend='butt')
+  }
+  box(bty = 'l')
+  mtext(xlab, side = 1, las = 1, cex = 1, family = jL.(xlab), line = par('mar')[1] -1.00)
+  mtext(ylab, side = 2, las = 3, cex = 1, family = jL.(ylab), line = par('mar')[2] -yPos.(ylim2))
+  if (nrow(d) > 1) legen2.(name = d[[1]], legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0)
+  if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
+  gp.()  # Get back to the default fear of using mar
+}  # ellip.(iris)  ellip.(iris[4:5])  ellip.(iris[3:5])
 
 
 ## Boxplot oriented for quantile limit and full/half box == (2022-05-20) ========================
