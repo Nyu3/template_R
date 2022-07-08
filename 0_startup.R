@@ -1514,7 +1514,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
 
 ## Clustering by probability ellipse == (2022-07-08) ========================
 ## [x,y,ID] preferable
-ellip. <- function(d, xlab = NULL, ylab = NULL, col = 1:6, legePos = NULL, fix = F, mar = par('mar'), PDF = T, ...) {
+ellip. <- function(d, xlab = NULL, ylab = NULL, name = NULL,col = 1:6, legePos = NULL, fix = F, mar = par('mar'), PDF = T, ...) {
   query_lib.(c('ellipse', 'robustbase'))
   ## data nesting
   d <- list2tibble.(d) %>% clean2.(na0 = F) %>% .[complete.cases(.), ] %>% split2.(nest = T)
@@ -1529,10 +1529,11 @@ ellip. <- function(d, xlab = NULL, ylab = NULL, col = 1:6, legePos = NULL, fix =
   if (is.character(col)) stop('Don\'t use color name like \'blue\'.  Use numbers 1 to 6\n\n', call. = F)
   d <- d %>% mutate(colpal = n_cyc.(col, nrow(d)) %>% c('Greys', 'Reds', 'Blues', 'Greens', 'Oranges', 'Purples')[.])  # for brewer.pal()
 
-  ## xy labels 
+  ## labels
   xylabs <- select(d, data) %>% {.[[1]][[1]]} %>% names()
   xlab <- xlab %||% xylabs[1]
   ylab <- ylab %||% xylabs[2]
+  name <- name %||% d[[1]]
 
   ## get ellipse info
   make_elli <- function(xy) {  # Minimum Covariance Determinant (MCD)
@@ -1578,7 +1579,7 @@ ellip. <- function(d, xlab = NULL, ylab = NULL, col = 1:6, legePos = NULL, fix =
   box(bty = 'l')
   mtext(xlab, side = 1, las = 1, cex = 1, family = jL.(xlab), line = par('mar')[1] -1.00)
   mtext(ylab, side = 2, las = 3, cex = 1, family = jL.(ylab), line = par('mar')[2] -yPos.(ylim2))
-  if (nrow(d) > 1) legen2.(name = d[[1]], legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0)
+  if (nrow(d) > 1) legen2.(name = name, legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0)
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
   gp.()  # Get back to the default fear of using mar
 }  # ellip.(iris)  ellip.(iris[4:5])  ellip.(iris[3:5])
