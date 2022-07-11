@@ -7,6 +7,7 @@ Others are; <br>
 
     plt.(iris[4:5])
     plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
+    iplot.(us_rent_income[c(2,5)], rot = 35)
     dens.(iris[4:5], cum = F)
     crp.(iris[2:3])
     hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
