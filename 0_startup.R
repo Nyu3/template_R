@@ -1142,6 +1142,121 @@ plt. <- function(d, ord = F, lty = 1, lwd = NULL, pch = NULL, xlab = '', ylab = 
 }  # plt.(iris[4:5], type = 3)  plt.(iris[-5], legePos = c(0.2, 0.99))  plt.(psd[[1]], type = 's')  plt.(psd[2:3], ylim = c(0, NA))
 
 
+## Item plot == (2022-07-11) ========================
+iplot. <- function(d, lty = 1, lwd = NULL, pch = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = NA, yline = NULL,
+                   legePos = NULL, name = NULL, mar = par('mar'),　tcl = par('tcl'),
+                   grid = F, error = T, cex = NULL, rot = 0, type = 'b', PDF = T, ...) {
+
+  if (sum(map_lgl(d, ~ is.character(.) | is.factor(.))) != 1 &&  sum(map_lgl(d, is.numeric)) == 0) {  # [ID, y1, y2, ...] preferable
+    stop('Only [ID,y] is applicable... \n\n', call. = F)
+  }
+  ## make a nested data
+  num_col <- d %>% select_if(is.numeric) %>% names()
+  tab_col <- d %>% select_if(~ !is.numeric(.)) %>% names()
+  tab_tib <- tibble(unique(d[[tab_col]])) %>% set_names(tab_col)
+  tmp <- tibble(name = num_col, item = rep(list(tab_tib), length(num_col)))
+
+  ## separate item & value from data
+  valueL <- list()
+  for(i in seq(nrow(tmp))) {
+    valueL[[i]] <- d %>% select(!!tab_col, !!num_col[i]) %>%
+                   group_by(across(all_of(tab_col))) %>%
+                   summarise_all(list(mean = mean., sd = sd.)) %>%
+                   mutate(sd = case_when(is.na(sd) ~ 0, TRUE ~ sd)) %>%
+                   {suppressMessages(left_join(tab_tib, .))} %>%
+                   rowid_to_column(var = 'serial') %>%
+                   mutate(lower = mean -sd, upper = mean +sd) %>%
+                   select_if(is.numeric)  # remove factor
+  }
+  tmp <- tmp %>% mutate(value = valueL)  # data set of serial, mean, sd
+
+  ## plot range
+  xy_all <- tmp %>% select(value) %>% unnest(everything()) %>% select(-sd)
+  def.(c('xlim2', 'ylim2'),
+       list(pr.(xy_all$serial, xlim, 0.04),
+            pr.(if(error == TRUE) xy_all[-1] %>% unlist else xy_all$mean, ylim, 0.13)
+       )
+  )
+
+  ## line type
+  if (nrow(tmp) == 1) name <- 0
+  lwd <- lwd %||% whichSize.(ref = nrow(tmp), vec = c(5, 10, 25, 50), mirror = c(1.5, 1.1, 0.8, 0.35))
+  col <- color2.(col, len = max(nrow(tmp), length(name)))
+
+  if (is.numeric(type)) type <- c('l', 'p', 'pp', 'b', 'bb', 'h', 's')[n_cyc.(type, 7)]
+  lty_get <- function(...) {
+    if (type %in% c('p', 'pp')) return(rep(0, length(dL)))  # deleted confusing dot legend
+    if (nrow(tmp) <= length(lty)) return(lty)
+    if (length(lty) == 1) return(rep(lty, nrow(tmp)))
+    else return(n_cyc.(lty, nrow(tmp)))
+  }
+  lty <- lty_get()
+  pch_point_get <- function(...) {
+    if (!anyNA(pch) && !is.null(pch)) return(pch)
+    if (type %in% c('l', 'h', 's')) return(NULL)
+    if (type %in% c('p', 'b')) return(rep(1, nrow(tmp)))
+    if (type %in% c('pp', 'bb')) return(rep(19, nrow(tmp)))
+    else return(NULL)
+  }
+  pch_point <- pch_point_get()
+  pch_legend <- if (anyNA(pch) && type %in% c('p', 'pp', 'b', 'bb')) NULL else pch_point  # to vanish bothersome point dot only for the legend
+
+
+  ## basic plot
+  par(mar = mar, tcl = tcl, ann = F)
+  plot.new()
+  plot.window(xlim = xlim2, ylim = ylim2)
+  if (grid == TRUE) abline(v = sort(unlist(axisFun.(xlim2, n=6))), h = sort(unlist(axisFun.(ylim2, n=5))), col = 'grey98')
+
+  item_name <- tmp$item[[1]][[1]]
+  for (i in 1:2) for (j in 1:2) {
+    if(i==1) axis(side=2*j-1, at=seq_along(item_name), labels=F, tcl=par('tcl'), cex.axis=ifelse(yPos.(xlim2)>0.9,1,0.9), lend='butt')
+    axis(side=2*j, at=axisFun.(ylim2,n=5)[[i]], labels=(i*j==1), tcl=par('tcl')/i, cex.axis=ifelse(yPos.(ylim2)>0.9,1,0.9), lend='butt')
+  }
+  box()
+  ## x-label
+  if (rot == 0) {
+    Line <- map.(str_count(item_name, '\n'), ~ whichSize.(ref = ., vec = 0:2, c(0.3, 1.3, 1.3))) %>%
+            {. *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60, 100), mirror = c(1, 1, 1, 1.5, 2))}
+    Cex <- map.(str_count(item_name, '\n'), ~ whichSize.(ref = ., vec = 0:2, mirror = c(0.90, 0.85, 0.6))) %>%
+           {. *whichSize. (ref = length(item_name), vec = c(8, 15, 35, 60), mirror = c(1, 0.8, 0.6, 0.37))}
+    item_name %>% {mtext(., at = seq(.), side = 1, las = 1, cex = cex %||% Cex, family = jL.(.), line = Line)}
+  } else {
+    yPos <- par('usr')[3] -0.035 *delta.(par('usr')[3:4]) *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.4))
+    nameLen <- stringi::stri_numbytes(item_name) %>% max.()  # Count including multi bytes char and space
+    rot_cex <- whichSize.(ref = nameLen, vec = c(5, 10, 15), c(0.8, 0.7, 0.6)) %>%
+               {. *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60, 100), c(0.9, 0.8, 0.75, 0.7, 0.4))}
+    text(seq(item_name), yPos, item_name, srt = rot,  xpd = T, adj = c(1, 1), cex = cex %||% rot_cex, family = jL.(item_name))
+  }
+  mtext(xlab, side = 1, las = 1, cex = 1, family = jL.(xlab), line = par('mar')[1] -1.00)
+  mtext(ylab, side = 2, las = 3, cex = 1, family = jL.(ylab), line = yline %||% par('mar')[2] -yPos.(ylim2))
+  ## line plot
+  for (i in seq(nrow(tmp))) {
+    if (error == TRUE) polygon.(tmp$value[[i]] %>% select(serial, lower, upper), col = col_tr.(col[i], 0.35))
+    ixy <- tmp$value[[i]] %>% select(serial, mean)
+    if (type == 'l') {
+      lines(ixy, lty = lty[i], col = col_tr.(col[i], tr = 0.8), lwd = lwd)
+    } else if (type %in% c('p', 'pp')) {
+      points(ixy, pch = pch_point[i], col = col_tr.(col[i], tr = ifelse(type == 'p', 0.8, 0.6)), lwd = lwd *0.8)
+    } else if (type %in% c('b', 'bb')) {
+      lines(ixy, lty = lty[i], col = col_tr.(col[i], tr = 0.8), lwd = lwd)
+      points(ixy, pch = pch_point[i], col = col_tr.(col[i], tr = ifelse(type == 'b', 0.8, 0.6)), lwd = lwd *0.8)
+    } else if (type == 'h') {
+      lines(ixy, lty = 1, col = col_tr.(col[i], tr = 0.8), lwd = lwd, type = 'h')
+    } else if (type == 's') {
+      lines(ixy, lty = 1, col = col_tr.(col[i], tr = 0.8), lwd = lwd, type = 's')
+    }
+  }
+  ## legend
+  if ((nrow(tmp) > 1 || !is.null(name)) && !0 %in% name) {  # No legend is needed for one line at least. Or name = 0 returns no legend
+    name <- name %||% tmp$name %||% str_c('#', seq_along(tmp$item[[1]][[1]]))  # Auto assignment
+    legen2.(name, legePos, col, lty, pch_legend)
+  }
+  if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
+  gp.()
+}  # iplot.(tibble(chr=str_c(letters[1:8], rep(1:10,26))[1:150], abc=iris[[1]]*0.1, xyz=iris[[2]]*0.1), rot=55)  iplot.(us_rent_income[c(2,5)], rot=35)
+
+
 ## Kernel Density Estimation plot == (2022-05-09) ========================
 dens. <- function(d, bw = 1, ord = F, lty = 1, lwd = NULL, xlab = '', ylab = '', col = NULL, xlim = NA, ylim = c(0, NA),
                   legePos = NULL, name = NULL, mar = par('mar'), grid = F, cum = F, ...) {
@@ -1451,7 +1566,7 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
     def.(c('xlim2', 'ylim2'), list(range(xlim2, ylim2), range(xlim2, ylim2)))
   }
   ## Linear fitting
-  draw_linearFit <- function(...) { 
+  draw_linearFit <- function(...) {
     qx <- seq(xlim2[1], xlim2[2], length.out = 100)
     qfit <- predict(mdl, se.fit = T, newdata = tibble(x = qx))$fit
     qse <- predict(mdl, se.fit = T, newdata = tibble(x = qx))$se
@@ -1514,7 +1629,8 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
 
 ## Clustering by probability ellipse == (2022-07-08) ========================
 ## [x,y,ID] preferable
-ellip. <- function(d, xlab = NULL, ylab = NULL, name = NULL,col = 1:6, legePos = NULL, fix = F, mar = par('mar'), PDF = T, ...) {
+ellip. <- function(d, xlab = NULL, ylab = NULL, name = NULL,col = 1:6, xlim = NA, ylim = NA, legePos = NULL, fix = F,
+                   mar = par('mar'), PDF = T, ...) {
   query_lib.(c('ellipse', 'robustbase'))
   ## data nesting
   d <- list2tibble.(d) %>% clean2.(na0 = F) %>% .[complete.cases(.), ] %>% split2.(nest = T)
@@ -1550,9 +1666,9 @@ ellip. <- function(d, xlab = NULL, ylab = NULL, name = NULL,col = 1:6, legePos =
   tmp <- d %>% select(ellipse) %>% unnest(everything())  #  ellipse > data range
   def.(c('x0', 'y0'), list(tmp[[1]], tmp[[2]]))
   if (between(min.(x0) /min.(y0), 0.9, 1.1) & between(max.(x0) /max.(y0), 0.9, 1.1) ) {  # When x & y differ slightly; keep the same scale
-    def.(c('xlim2', 'ylim2'), list(pr.(c(x0, y0), NA, 0.13), pr.(c(x0, y0), NA, 0.13)))
+    def.(c('xlim2', 'ylim2'), list(pr.(c(x0, y0), xlim, 0.13), pr.(c(x0, y0), ylim, 0.13)))
   } else {  # When x & y differ largely; change proper scale to see easily
-    def.(c('xlim2', 'ylim2'), list(pr.(x0, NA, 0.13), pr.(y0, NA, 0.13)))
+    def.(c('xlim2', 'ylim2'), list(pr.(x0, xlim, 0.13), pr.(y0, ylim, 0.13)))
   }
   if (fix == TRUE) {  # Wnen the same scale on both x and y-axis is desired
     def.(c('xlim2', 'ylim2'), list(range(xlim2, ylim2), range(xlim2, ylim2)))
@@ -1717,7 +1833,7 @@ boxplot2. <- function(tnL, type, jit, val, wid, ylim, mar, rot, cex, cut, digit,
     mtext(name, at = xPos, side = 1, las = 1, cex = labAdj(name)$cex, family = jL.(name), line = labAdj(name)$line)
   } else {
     yPos <- par('usr')[3] -0.035 *delta.(par('usr')[3:4]) *whichSize.(ref = length(yL), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.9))
-    nameLen <- stringi::stri_numbytes(name) %>% max.(.)  # Count including multi bytes char and space
+    nameLen <- stringi::stri_numbytes(name) %>% max.()  # Count including multi bytes char and space
     rot_cex <- whichSize.(ref = nameLen, vec = c(5, 10, 15), c(0.8, 0.7, 0.6)) %>%
                {. *whichSize.(ref = length(yL), vec = c(8, 15, 35, 60, 100), c(0.9, 0.8, 0.7, 0.6, 0.4))}
     text(xPos, yPos, name, srt = rot,  xpd = T, adj = c(1, 1), cex = cex %||% rot_cex, family = jL.(name))
@@ -2033,10 +2149,14 @@ corMat. <- function(d, ...) {
 }  # corMat.(iris)
 
 
-## Polygon short-cut function == (2022-02-27) ========================
+## Polygon short-cut function == (2022-07-11) ========================
 polygon. <- function(d, col = 'grey95', ...) {
   d <- list2tibble.(d) %>% {if (ncol(.) == 1) rowid_to_column(., 'index') else .}
-  d_poly <- tibble(x = c(d[[1]], rev(d[[1]])), y = c(rep(0, nrow(d)), rev(d[[2]])))
+  if (ncol(d) < 3) {  # [index,y], [x,y]
+    d_poly <- tibble(x = c(d[[1]], rev(d[[1]])), y = c(rep(0, nrow(d)), rev(d[[2]])))
+  } else {  # [x,lowerY,upperY]
+    d_poly <- tibble(x = c(d[[1]], rev(d[[1]])), y = c(d[[2]], rev(d[[3]])))
+  }
   polygon(d_poly, border = NA, col = col_tr.(col, tr = 0.8))
 }  # plt.(psd[2:3],add=0); polygon.(psd[2:3][30:50, ]); plt.(psd[2:3],add=2)
 
