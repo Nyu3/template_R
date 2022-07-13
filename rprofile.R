@@ -141,7 +141,7 @@ tips <- "
    pie.(iris[41:120,5], percent = T)
    sp.(iris, col = 3)
    stats.(iris)
-   smry.(iris, .f = 'sd(x) / mean(x)')
+   smry.(iris, f = 'sd(x) / mean(x)')
    html.(starwars)
 ...\n"
 
