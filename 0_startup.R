@@ -652,7 +652,7 @@ smry. <- function(d, f = 'mean', name = 'n', div = NULL, ...) {
     cat('Casting, by = \"', f, '\"\n', sep = '')
   }
 
-  out <- left_join(tmp1, tmp2, by = all_of(key))
+  out <- left_join(tmp1, tmp2)
   return(out)
 }  # d<-sample(seq(87),1000,T)%>%starwars[.,]; smry.(d, f = 'percentile.(x, 0.5)/mean(x)')  smry.(iris)  smry.(iris[1:4])
 
