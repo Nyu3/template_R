@@ -110,11 +110,11 @@ attach(.nya0env)  # Confirm by ls('.nya0env') and search()
 if (.Platform$'OS.type' == 'windows') windowsFonts(`Yu Gothic` = windowsFont('Yu Gothic'))
 
 
-## Move to casual space == (2021-08-10) ========================
+## Move to casual space == (2022-08-31) ========================
 if (Sys.info()['sysname'] == 'Darwin') setwd('~/Desktop')  # The directory anywhere you click ~.R file gives priority to this command
 if (Sys.info()['sysname'] == 'Windows') {
-  if (file.exists(file.path(Sys.getenv('USERPROFILE'), 'OneDrive/デスクトップ'))) {
-    setwd(file.path(Sys.getenv('USERPROFILE'), 'OneDrive/デスクトップ'))
+  if (file.exists(file.path(Sys.getenv('USERPROFILE'), 'OneDrive - 株式会社リード/デスクトップ'))) {
+    setwd(file.path(Sys.getenv('USERPROFILE'), 'OneDrive - 株式会社リード/デスクトップ'))
   } else {
     setwd(file.path(Sys.getenv('USERPROFILE'), 'Desktop'))
   }
