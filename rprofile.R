@@ -1,6 +1,17 @@
 ## ٩(´ᗜ`)و (´-`) .｡oO (the script for .Rprofile, 2021-03-24) |████████████████████████|
 
 
+## .Rprofile, just two lines for your Windows == (2023-06-13) ========================
+# script <- readLines(paste0('https://github.com/Nyu3/template_R/blob/master/rprofile.R', '?raw=TRUE'), encoding = 'UTF-8')
+# eval(parse(text = script))
+
+
+## Welcome message == (2020-10-24) ========================
+## CAUTION: JupyterLab allows neither cat(), print() nor message() in the welcome message on .Rprofile
+## https://stackoverflow.com/questions/37689694/real-time-printing-to-console-with-r-in-jupyter
+if (interactive()) cat('...Now loading...\n...')
+
+
 ## Install vital packages if necessary == (2023-06-13) ========================
 pkgs_must <- c('bindrcpp', 'devtools', 'ellipse', 'formattable', 'hablar', 'logKDE', 'minpack.lm', 'naturalsort',
                'pracma', 'psych', 'robustbase', 'scico', 'tidyverse', 'viridis', 'writexl')
@@ -83,7 +94,7 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   library('stats')  # to suppress filter() conflict
   library('MASS')  # to suppress select() conflict
   library('tidyverse')
-  library('utils', quietly = T)  # to use pipe
+#  library('utils', quietly = T)  # to use pipe
   get_source <- function(url_no = 1, file_no = 1) {
     git_url <- file.path('https://github.com', c(
                          'Nyu3/template_R/blob/master',
