@@ -21,9 +21,6 @@ skip_messages <- function(packs, ...) {
 }
 for (packs in c('tidyverse')) skip_messages(packs)  # Suppress annoying messages when calling
 
-#library('stats')  # to suppress filter() conflict
-#library(MASS) # to suppress select() conflict
-
 pkgs <- c('hablar', 'lubridate', 'readxl', 'tidyverse')  # Confirm called packages by search()
 options(defaultPackages = c(getOption('defaultPackages'), pkgs))  # Invoke
 
@@ -80,6 +77,8 @@ yourname <- Sys.getenv('USERNAME')
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R_script', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
+  library('stats')  # to suppress filter() conflict
+  library('MASS') # to suppress select() conflict
   library('tidyverse')
   library('utils', quietly = T)  # to use pipe
   get_source <- function(url_no = 1, file_no = 1) {
