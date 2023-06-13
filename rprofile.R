@@ -1,11 +1,12 @@
 ## ٩(´ᗜ`)و (´-`) .｡oO (the script for .Rprofile, 2021-03-24) |████████████████████████|
 
 
-## Install vital packages if necessary == (2022-11-04) ========================
+## Install vital packages if necessary == (2023-06-13) ========================
 pkgs_must <- c('bindrcpp', 'devtools', 'ellipse', 'formattable', 'hablar', 'logKDE', 'minpack.lm', 'naturalsort',
                'pracma', 'psych', 'robustbase', 'scico', 'tidyverse', 'viridis', 'writexl')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
 if (sum(pkgs_lack) > 0) {
+  options(repos = structure(c(CRAN = 'http://cran.ism.ac.jp/')))
   for (i in seq_along(which(pkgs_lack))) {
     cat(paste0('\n    trying to install ', pkgs_must[pkgs_lack], '...\n\n'))
     utils::install.packages(pkgs_must[pkgs_lack][i], dependencies = T)
@@ -67,18 +68,16 @@ formals(source)$chdir <- TRUE  # if (R.Version()$major < 4) TRUE else FALSE
 formals(unlist)$use.names <- FALSE
 
 
-## Access permission names == (2021-08-17) ========================
-researcher_names <- c('y-nishino', '', 'c-nakagawa')  # '' is assigned to Mac & Ubuntu
-production_names <- c('Microtrac', 't-hayakawa')
+## Access permission names == (2022-05-19) ========================
+heavy_usernames <- c('y-nishino', 'c-nakagawa', 'Microtrac', 't-hayakawa', '')  # '' is assigned to Mac & Ubuntu
+light_usernames <- c('john-doe')  # a subject for an experiment by readqadiv13
 yourname <- Sys.getenv('USERNAME')
 
 
-## Calling basic script == (2021-08-17) ========================
+## Calling basic script == (2023-01-19) ========================
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
-  sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R_script', '0_startup.R'), envir = .nya0env, chdir = F)
+  sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
-  library('stat')  # to suppress filter() conflict
-  library('MASS') # to suppress select() conflict
   library('tidyverse')
   library('utils', quietly = T)  # to use pipe
   get_source <- function(url_no = 1, file_no = 1) {
@@ -93,12 +92,12 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
     eval(parse(text = script), envir = .nya0env)
   }
 
-  if (any(grepl(yourname, researcher_names))) {  # for heavy users (Win & JupyterLab)
-    purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))
-  } else if (yourname %in% production_names) {  # for light & PSD Win-users
-    purrr::walk2(c(3,3,3,3), 1:4, ~ get_source(url_no = .x, file_no = .y))
-  } else {  # for light Win-users
-    get_source()  # Only use of '0_startup.R'
+  if (any(grepl(yourname, heavy_usernames))) {  # for heavy users (Win & JupyterLab)
+    purrr::walk2(.x = c(1,2,2,2), .y = 1:4, ~ get_source(url_no = .x, file_no = .y))
+  } else if (yourname %in% light_usernames) {  # for light & PSD Win-users
+    purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))  # c(3,3,3,3) --> readqadiv13/...
+  } else {  # Only use of '0_startup.R'
+    get_source()
   }
   remove('get_source')
 }
@@ -122,14 +121,16 @@ if (Sys.info()['sysname'] == 'Windows') {
 }
 
 
-## Hint message & delete objects == (2022-02-14) ========================
+## Hint message & delete objects == (2022-07-11) ========================
 tips <- "
    plt.(iris[4:5])
    plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
+   iplot.(us_rent_income[c(2,5)], rot = 35)
    dens.(iris[4:5], cum = F)
    crp.(iris[2:3])
    hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
    corp.(iris[3:4])
+   ellip.(iris)
    box2.(iris, rot = 20, pareto = T, cut = T)
    box2.(diamonds[1:1000, 1:3], mark = 'color')
    box2.(id2y.(diamonds[1:1000, 1:3]))
@@ -137,14 +138,15 @@ tips <- "
    box2.(time2.(economics[1:50, ], div = 'year'))
    barp.(iris, xyChange = T, rot = 25)
    barp.(iris, cum = T, xyChange = T)
+   pie.(iris[41:120,5], percent = T)
    sp.(iris, col = 3)
    stats.(iris)
-   pie.(iris[41:120,5], per = T)
+   smry.(iris, .f = 'sd(x) / mean(x)')
    html.(starwars)
 ...\n"
 
-if (interactive()) if (!yourname %in% production_names) cat(tips)
+if (interactive()) cat(tips)
 
-remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must','production_names', 'researcher_names', 'skip_messages', 'tips', 'yourname'))
+remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'heavy_usernames', 'light_usernames', 'skip_messages', 'tips', 'yourname'))
 
 ## END ##
