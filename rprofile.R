@@ -78,7 +78,8 @@ yourname <- Sys.getenv('USERNAME')
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
-  library('tidyverse')
+  library('stats')  # to suppress filter() conflict
+  library('MASS')  # to suppress select() conflict  library('tidyverse')
   library('utils', quietly = T)  # to use pipe
   get_source <- function(url_no = 1, file_no = 1) {
     git_url <- file.path('https://github.com', c(
