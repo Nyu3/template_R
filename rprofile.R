@@ -77,7 +77,7 @@ yourname <- Sys.getenv('USERNAME')
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R_script', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
-  library('stats')  # to suppress filter() conflict
+  library('stat')  # to suppress filter() conflict
   library('MASS') # to suppress select() conflict
   library('tidyverse')
   library('utils', quietly = T)  # to use pipe
