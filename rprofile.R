@@ -21,7 +21,7 @@ skip_messages <- function(packs, ...) {
 }
 for (packs in c('tidyverse')) skip_messages(packs)  # Suppress annoying messages when calling
 
-library('stats')  # to suppress filter() conflict
+#library('stats')  # to suppress filter() conflict
 #library(MASS) # to suppress select() conflict
 
 pkgs <- c('hablar', 'lubridate', 'readxl', 'tidyverse')  # Confirm called packages by search()
