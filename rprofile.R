@@ -1,11 +1,9 @@
 ## ٩(´ᗜ`)و (´-`) .｡oO (the script for .Rprofile, 2021-03-24) |████████████████████████|
 
 
-## Install vital packages if necessary == (2022-05-20) ========================
-pkgs_must <- c('devtools', 'tidyverse',
-               'bindrcpp', 'changepoint', 'devtools', 'ellipse', 'extrafont', 'formattable', 'hablar', 'logKDE', 'minerva',
-               'minpack.lm', 'naturalsort', 'pracma', 'psych', 'robustbase', 'rrcov', 'scico', 'tibbletime', 'VGAM',
-               'viridis', 'writexl')
+## Install vital packages if necessary == (2022-11-04) ========================
+pkgs_must <- c('bindrcpp', 'devtools', 'ellipse', 'formattable', 'hablar', 'logKDE', 'minpack.lm', 'naturalsort',
+               'pracma', 'psych', 'robustbase', 'scico', 'tidyverse', 'viridis', 'writexl')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
 if (sum(pkgs_lack) > 0) {
   for (i in seq_along(which(pkgs_lack))) {
@@ -23,6 +21,9 @@ skip_messages <- function(packs, ...) {
 }
 for (packs in c('tidyverse')) skip_messages(packs)  # Suppress annoying messages when calling
 
+library(stats)  # to suppress filter() conflict
+library(MASS) # to suppress select() conflict
+
 pkgs <- c('hablar', 'lubridate', 'readxl', 'tidyverse')  # Confirm called packages by search()
 options(defaultPackages = c(getOption('defaultPackages'), pkgs))  # Invoke
 
@@ -35,16 +36,17 @@ setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
 })
 
 
-## Fix the default parameters for a graphical device == (2021-03-24) ========================
+## Fix the default parameters for a graphical device == (2022-11-05) ========================
 ## https://stackoverflow.com/questions/48839319
 setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
   f_device <- getOption('device')
   newDev <- function(...) {
     f_device(...) 
     graphics::par(
-      mgp = c(2, 0.2, 0), ann = T, xaxs = 'i', yaxs = 'i', col = 'grey13', col.axis = 'grey13', fg = 'grey13', ps = 13, lwd = 1.3,
-      mar = c(2.4, 4, 0.5, 1), tcl = 0.25, cex.axis = 1, las = 1,
-      family = c('Avenir Next', 'sans', 'Yu Gothic')[which(c('Darwin', 'Linux', 'Windows') %in% Sys.info()['sysname'])]  # Noto Sans CJK JP
+      ann = T, cex.axis = 1, col = 'grey13', col.axis = 'grey13', col.lab = 'grey13', col.main = 'grey13', col.sub = 'grey13', fg = 'grey13',
+      family = c('Avenir Next', 'sans', 'Yu Gothic')[which(c('Darwin', 'Linux', 'Windows') %in% Sys.info()['sysname'])],  # Noto Sans CJK JP
+      las = 1, lwd = 1.3, mar = c(2.5, 4, 0.5, 1), mfrow = c(1, 1), mgp = c(1.5, 0.2, 0), oma = c(0, 0, 0, 0),
+      ps = 13, tcl = 0.25, xaxs = 'r', yaxs = 'r'
     )
   }
   options(device = newDev)
@@ -68,13 +70,13 @@ formals(source)$chdir <- TRUE  # if (R.Version()$major < 4) TRUE else FALSE
 formals(unlist)$use.names <- FALSE
 
 
-## Access permission names == (2022-05-19) ========================
-heavy_usernames <- c('y-nishino', 'c-nakagawa', 'Microtrac', 't-hayakawa', '')  # '' is assigned to Mac & Ubuntu
-light_usernames <- c('john-doe')  # a subject for an experiment by readqadiv13
+## Access permission names == (2021-08-17) ========================
+researcher_names <- c('y-nishino', '', 'c-nakagawa')  # '' is assigned to Mac & Ubuntu
+production_names <- c('Microtrac', 't-hayakawa')
 yourname <- Sys.getenv('USERNAME')
 
 
-## Calling basic script == (2022-05-19) ========================
+## Calling basic script == (2021-08-17) ========================
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R_script', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
@@ -92,12 +94,12 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
     eval(parse(text = script), envir = .nya0env)
   }
 
-  if (any(grepl(yourname, heavy_usernames))) {  # for heavy users (Win & JupyterLab)
-    purrr::walk2(.x = c(1,2,2,2), .y = 1:4, ~ get_source(url_no = .x, file_no = .y))
-  } else if (yourname %in% light_usernames) {  # for light & PSD Win-users
-    purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))  # c(3,3,3,3) --> readqadiv13/...
-  } else {  # Only use of '0_startup.R'
-    get_source()
+  if (any(grepl(yourname, researcher_names))) {  # for heavy users (Win & JupyterLab)
+    purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))
+  } else if (yourname %in% production_names) {  # for light & PSD Win-users
+    purrr::walk2(c(3,3,3,3), 1:4, ~ get_source(url_no = .x, file_no = .y))
+  } else {  # for light Win-users
+    get_source()  # Only use of '0_startup.R'
   }
   remove('get_source')
 }
@@ -110,27 +112,25 @@ attach(.nya0env)  # Confirm by ls('.nya0env') and search()
 if (.Platform$'OS.type' == 'windows') windowsFonts(`Yu Gothic` = windowsFont('Yu Gothic'))
 
 
-## Move to casual space == (2022-08-31) ========================
+## Move to casual space == (2021-08-10) ========================
 if (Sys.info()['sysname'] == 'Darwin') setwd('~/Desktop')  # The directory anywhere you click ~.R file gives priority to this command
 if (Sys.info()['sysname'] == 'Windows') {
-  if (file.exists(file.path(Sys.getenv('USERPROFILE'), 'OneDrive - 株式会社リード/デスクトップ'))) {
-    setwd(file.path(Sys.getenv('USERPROFILE'), 'OneDrive - 株式会社リード/デスクトップ'))
+  if (file.exists(file.path(Sys.getenv('USERPROFILE'), 'OneDrive/デスクトップ'))) {
+    setwd(file.path(Sys.getenv('USERPROFILE'), 'OneDrive/デスクトップ'))
   } else {
     setwd(file.path(Sys.getenv('USERPROFILE'), 'Desktop'))
   }
 }
 
 
-## Hint message & delete objects == (2022-07-11) ========================
+## Hint message & delete objects == (2022-02-14) ========================
 tips <- "
    plt.(iris[4:5])
    plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
-   iplot.(us_rent_income[c(2,5)], rot = 35)
    dens.(iris[4:5], cum = F)
    crp.(iris[2:3])
    hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
    corp.(iris[3:4])
-   ellip.(iris)
    box2.(iris, rot = 20, pareto = T, cut = T)
    box2.(diamonds[1:1000, 1:3], mark = 'color')
    box2.(id2y.(diamonds[1:1000, 1:3]))
@@ -138,15 +138,14 @@ tips <- "
    box2.(time2.(economics[1:50, ], div = 'year'))
    barp.(iris, xyChange = T, rot = 25)
    barp.(iris, cum = T, xyChange = T)
-   pie.(iris[41:120,5], percent = T)
    sp.(iris, col = 3)
    stats.(iris)
-   smry.(iris, f = 'sd(x) / mean(x)')
+   pie.(iris[41:120,5], per = T)
    html.(starwars)
 ...\n"
 
-if (interactive()) cat(tips)
+if (interactive()) if (!yourname %in% production_names) cat(tips)
 
-remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must','heavy_usernames', 'light_usernames', 'skip_messages', 'tips', 'yourname'))
+remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must','production_names', 'researcher_names', 'skip_messages', 'tips', 'yourname'))
 
 ## END ##
