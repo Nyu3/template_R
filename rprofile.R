@@ -7,6 +7,7 @@ pkgs_must <- c('bindrcpp', 'devtools', 'ellipse', 'formattable', 'hablar', 'logK
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
 if (sum(pkgs_lack) > 0) {
   options(repos = structure(c(CRAN = 'http://cran.ism.ac.jp/')))
+  options(showPackageStartupMessages = F)
   for (i in seq_along(which(pkgs_lack))) {
     cat(paste0('\n    trying to install ', pkgs_must[pkgs_lack], '...\n\n'))
     utils::install.packages(pkgs_must[pkgs_lack][i], dependencies = T)
