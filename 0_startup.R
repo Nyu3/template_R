@@ -1041,14 +1041,14 @@ today2. <- function(chr = NULL, ...) {
 now2. <- function(...) now(tz = 'Asia/Tokyo') %>% gsub('-|:', '', .) %>% gsub (' ', '-', .) %>% str_sub(3, 13)
 
 
-## Save graphics == (2022-03-03) ========================
+## Save graphics == (2023-06-13) ========================
 save. <- function(name = NULL, type = 'jpg', wh = dev.size(), ...) {
   saveN <- name %||% now2.()
   if (type %in% c('jpg', 'jpeg', 'j')) {
     dev.copy(jpeg, file = str_c(saveN, '.jpg'), units = 'in', width = wh[1], height = wh[2], res = 150)
     dev.off()
   }
-  if (type %in% 'png') {
+  if (type %in% c('png', 'p')) {
     dev.copy(png, file = str_c(saveN, '.png'), units = 'in', width = wh[1], height = wh[2], res = 350)
     dev.off()
   }
