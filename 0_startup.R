@@ -1248,7 +1248,7 @@ plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = p
     }
     ## x-label
     item_name <- xy[[1]]
-    yPos <- par('usr')[3] -0.025 *delta.(par('usr')[3:4]) *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.6))
+    yPos <- par('usr')[3] -0.025 *delta.(par('usr')[3:4]) *whichSize.(ref = length(item_name), vec = c(4, 13, 25, 35, 60), c(1, 0.95, 0.9, 0.7, 0.6))
     nameLen <- stringi::stri_numbytes(item_name) %>% max.()  # Count including multi bytes char and space
     rot_cex <- whichSize.(ref = nameLen, vec = c(5, 10, 15), c(0.9, 0.8, 0.7)) %>%
                {. *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60, 100), c(1, 0.8, 0.75, 0.7, 0.4))}
