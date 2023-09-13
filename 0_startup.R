@@ -1248,7 +1248,7 @@ plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = p
     }
     ## x-label
     item_name <- xy[[1]]
-    yPos <- par('usr')[3] -0.025 *delta.(par('usr')[3:4]) *whichSize.(ref = length(item_name), vec = c(4, 13, 25, 35, 60), c(1, 0.95, 0.9, 0.7, 0.6))
+    yPos <- par('usr')[3] -0.025 *delta.(par('usr')[3:4]) *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.6))
     nameLen <- stringi::stri_numbytes(item_name) %>% max.()  # Count including multi bytes char and space
     rot_cex <- whichSize.(ref = nameLen, vec = c(5, 10, 15), c(0.9, 0.8, 0.7)) %>%
                {. *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60, 100), c(1, 0.8, 0.75, 0.7, 0.4))}
@@ -2067,7 +2067,7 @@ box1plot. <- function(yL, type = 'half', col, xlab = NULL, ylab = NULL, ylim = N
   if (length(xname) < length(xPos)) xname <- c(xname, rep(NA_character_, times = length(xPos) -length(xname)))
   if (rot == 0) {
     rot0_line <- map.(str_count(xname, '\n'), ~ whichSize.(ref = ., vec = 0:2, c(0.35, 1.2, 1.3))) %>%
-                 {. *whichSize.(ref = length(yL), vec = c(8, 15, 35, 60, 100), mirror = c(1, 1, 1, 1.5, 2))}
+                 {. *whichSize.(ref = length(yL), vec = c(8, 15, 35, 60, 100), mirror = c(0.7, 0.8, 1, 1.5, 2))}
     rot0_cex <- map.(str_count(xname, '\n'), ~ whichSize.(ref = ., vec = 0:2, mirror = c(0.90, 0.85, 0.6))) %>%
                 {. *whichSize. (ref = length(yL), vec = c(8, 15, 35, 60), mirror = c(1, 0.8, 0.6, 0.37))}
     mtext(xname, at = xPos, side = 1, las = 1, cex = cex_xname %||% rot0_cex, family = jL.(xname), line = rot0_line)
