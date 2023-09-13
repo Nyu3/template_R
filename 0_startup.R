@@ -2271,7 +2271,7 @@ boxplot22. <- function(tnL, type, jit, val, wid, ylim, rot, cex, cut, digit, mar
   if (rot == 0) {
     mtext(name, at = xPos, side = 1, las = 1, cex = labAdj(name)$cex, family = jL.(name), line = labAdj(name)$line)
   } else {
-    yPos <- par('usr')[3] -0.035 *delta.(par('usr')[3:4]) *whichSize.(ref = length(yL), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.9))
+    yPos <- par('usr')[3] -0.035 *delta.(par('usr')[3:4]) *whichSize.(ref = length(yL), vec = c(8, 25, 35, 60), c(0.9, 0.8, 0.7, 0.9))
     nameLen <- stringi::stri_numbytes(name) %>% max.()  # Count including multi bytes char and space
     rot_cex <- whichSize.(ref = nameLen, vec = c(5, 10, 15), c(0.8, 0.7, 0.6)) %>%
                {. *whichSize.(ref = length(yL), vec = c(8, 15, 35, 60, 100), c(0.9, 0.8, 0.7, 0.6, 0.4))}
