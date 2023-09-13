@@ -1965,7 +1965,7 @@ box2nest. <- function(d, sel = NULL, time_div = NULL, ...) {  # sel works on [y1
 }
 
 
-## base function for box2.() == (2023-08-09) ========================
+## base function for box2.() == (2023-09-13) ========================
 box1plot. <- function(yL, type = 'half', col, xlab = NULL, ylab = NULL, ylim = NA,
                       wid = 0.65, jit  = T, val = T,  n = F, rot = 0, cex_xname = 0.8, digit = NULL, ...) {
   ## yL <- c(iris[4:5])
@@ -2075,7 +2075,7 @@ box1plot. <- function(yL, type = 'half', col, xlab = NULL, ylab = NULL, ylim = N
 
   if (rot != 0) {
     yPos <- par('usr')[3] -0.035 *delta.(par('usr')[3:4]) *whichSize.(ref = length(yL), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.9))
-    nameLen <- stringi::stri_numbytes(xname) %>% {skipMess(max.(.))}  # Count including multi bytes char and space
+    nameLen <- stringi::stri_numbytes(xname) %>% {skipMess.(max.(.))}  # Count including multi bytes char and space
     rot_cex <- whichSize.(ref = nameLen, vec = c(5, 10, 15), c(0.8, 0.7, 0.6)) %>%
                {. *whichSize.(ref = length(yL), vec = c(8, 15, 35, 60, 100), c(0.9, 0.8, 0.7, 0.6, 0.4))}
     text(xPos, yPos, xname, srt = rot,  xpd = T, adj = c(1, 1), cex = cex_xname %||% rot_cex, family = jL.(xname))
