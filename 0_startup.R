@@ -777,10 +777,10 @@ whichNear. <- function(vec, ref, back = F, value = F, ...) {
 whichSize. <- function(vec, ref, mirror, ...) whichNear.(vec, ref) %>% mirror[.]
 
 
-## Japanese or not for label & legend == (2020-12-08) ========================
+## Japanese or not for label & legend == (2023-09-27) ========================
 jL. <- function(chr, ...) {  # 'systemfonts'::system_fonts()$family %>% unique() %>% sort()
   os_type <- which(c('Darwin', 'Linux', 'Windows') %in% Sys.info()['sysname'])
-  if (class(chr) == 'character') {
+  if (str_detect(class(chr), 'character|factor') %>% any()) {
     if (!exists('chr') || is.null(chr) || anyNA(chr)) return(c('Avenir Next', 'sans')[os_type])
     tf <- str_detect(chr, pattern = '\\p{Hiragana}|\\p{Katakana}|\\p{Han}')
     if (any.(tf)) {
@@ -900,11 +900,12 @@ choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, fullte
 }
 
 
-## Plot range for plot.window() & axisFun.() == (2022-11-07) ========================
+## Plot range for plot.window() & axisFun.() == (2023-09-20) ========================
 pr. <- function(d, XYlims = NA, expand_ratio = 0.035, ...) {
   if ('list' %in% class(d)) d <- unlist(d)
   if (is.atomic(d)) d <- as_tibble(d)
   if (ncol(d) > 1) d <- d[1]
+  if (is.null(XYlims)) XYlims <- c(NA, NA)
   if (length(XYlims) == 1) XYlims <- c(XYlims, NA)
   xyR <- dplyr::coalesce(XYlims, range.(d))  # you can convert even dttm
   expand_direction <- ifelse(is.na(XYlims), 1, 0) *c(-1, 1)  # expand the range if pointed value --> 1, NA --> 0
@@ -957,7 +958,7 @@ colGra. <- function(d, color, ColorSteps = 13, ...) {
 }
 
 
-## Auto color assignment == (2022-11-07) ========================
+## Auto color assignment == (2023-09-26) ========================
 color2. <- function(color = NULL, len = NULL, ...) {
   query_lib.(RColorBrewer, scico, viridis, viridisLite)
   color_base <- c('black', 'firebrick1', 'deepskyblue4', 'antiquewhite3', 'sienna3', 'palevioletred3', 'seagreen4', 'dodgerblue3',
@@ -993,7 +994,14 @@ color2. <- function(color = NULL, len = NULL, ...) {
     } else if (len == 2) {
       out <- c('black', 'grey60')
     } else if (len == 3) {  # color2.(len = ncol(iris[1:3]))
-      out <- color_base[1:3]
+      rand <- floor(runif(1, min = 1, max = 1 + 5))
+      out <- list(
+               color_base[1:3],
+               c('#003356', '#f3981c', '#e3e1d6'),  # navy, orange, accent
+               c('#bdc6ca', '#32495f', '#889291'),  # gray base, sub, accent
+               c('#99af87', '#4b4936', '#4a6b44'),  # green base (wasabi)
+               c('#ee7d50', '#68666c', '#d2ddde')  # rocky red, cloud grey, mouse grey
+             )[[rand]]
     } else if (len < 6) {
       out <- viridisLite::viridis(len +1, option = 'A')[-(len +1)]
     } else {  # color2.(len = c(iris, iris, iris) %>% ncol())
@@ -1190,7 +1198,7 @@ intersectX. <- function(df1, df2, ...) {
 }  # plt.(list(df1, df2)); abline(v = intersectX.(df1, df2))
 
 
-## Frame of plot == (2023-03-03) ========================
+## Frame of plot == (2023-09-21) ========================
 plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = par('tcl'), padj = -0.1, rot = 0, cexlab = NULL,
                         bty = c('o', 'l')[1], xlab = NULL, ylab = NULL, yline = NULL, ...) {
   ## if you know xtype is 'num' in advance, xy = NULL is the shortcut
@@ -1248,7 +1256,7 @@ plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = p
     }
     ## x-label
     item_name <- xy[[1]]
-    yPos <- par('usr')[3] -0.025 *delta.(par('usr')[3:4]) *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.6))
+    yPos <- par('usr')[3] -0.035 *delta.(par('usr')[3:4]) *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.6))
     nameLen <- stringi::stri_numbytes(item_name) %>% max.()  # Count including multi bytes char and space
     rot_cex <- whichSize.(ref = nameLen, vec = c(5, 10, 15), c(0.9, 0.8, 0.7)) %>%
                {. *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60, 100), c(1, 0.8, 0.75, 0.7, 0.4))}
@@ -1662,12 +1670,12 @@ pie. <- function(d, col = NULL, cex = 0.85, percent = F, digit = 1, cent_name = 
 }
 
 
-## Linear correlation plot == (2022-11-09) ========================
+## Linear correlation plot == (2023-09-20) ========================
 ## NOTE.1  Regression analysis is strictly applicable to cause (x) and effect (y; random variable) on the assumption that x has NO error...
 ## NOTE.2  Correlation analysis sees BOTH x & y as random variables; thus don't use linear regression and prob. ellipse at the same time...
 ## Trivia.1  You'll see the cross points on the line and ellipse can draw y-axis parallel lines as tangent
 ## Trivia.2  The longer axis of the ellipse is corresponding to the axis of principal component analysis
-corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = NULL, li = F, el = T, fix = F,
+corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = NULL, li = F, el = T, fix = F,
                   yline = NULL, lege = T, PDF = T, ...) {
   ## owful settings...
   query_lib.(ellipse, robustbase)
@@ -1687,10 +1695,13 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
   mdlNum <- map_dbl(list(mdl0, mdl1), ~ summary(.) %>% .$sigma) %>% which.min()
   mdl <- list(mdl0, mdl1)[[mdlNum]]  # Choose better
   Coef <- list(c(0, coef(mdl0)), coef(mdl1))[[mdlNum]] %>% set_names(NULL)
-  # Cor <- robust::covRob(d, corr = T)$cov[1, 2]  # No robust, including outliers; cor.test(x, y, method = 'pearson')$estimate
+  # Cor <- robust::covRob(d, corr = T)$cov[1, 2]  # No robust, including outliers
   # Cnt <- robust::covRob(d, corr = T)$center  # If Coef[2] ~ +/-0.01 and shows strong Cor, don't care because it's 1to1 relationship
   # Cor <- if (nrow(d) > 13) robustbase::covMcd(d, cor = T)$cor[1, 2] else cor(d)[1, 2]  # covMcd results are different for small data
-  Cor <- cor.test(d[[1]], d[[2]], method = 'spearman', exact = F)$estimate
+  # Cor <- skipMess.(minerva::mine(d[[1]], d[[2]])$MIC)  # Non-linear (Maximum Information Coefficient)
+  # Cor <- skipMess.(minerva::mine(d[[1]], d[[2]], normalization = T)$TIC)  # (Total Information Coefficient)
+  Cor <- cor.test(d[[1]], d[[2]], method = 'spearman', exact = F)$estimate  # spearman > pearson > kendall
+
   Cnt <- try(robustbase::covMcd(d, cor = T, alpha = 0.75)$center, silent = T)
   if ('try-error' %in% class(Cnt)) Cnt <- c(mean.(x), Coef[1] +Coef[2] *mean.(x))
 
@@ -1739,14 +1750,29 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
   }  # END of text3()
 
   ## Drawing
-  if (between(min.(x) /min.(y), 0.9, 1.1) & between(max.(x) /max.(y), 0.9, 1.1) ) {  # When x & y differ slightly; keep the same scale
-    def.(c('xlim2', 'ylim2'), list(pr.(c(x, y), NA, 0.13), pr.(c(x, y), NA, 0.13)))
-  } else {  # When x & y differ largely; change proper scale to see easily
-    def.(c('xlim2', 'ylim2'), list(pr.(x, NA, 0.13), pr.(y, NA, 0.13)))
-  }
+  xlim2 <- if (!is.null(xlim)) {
+               pr.(x, xlim, 0.13)
+           } else {
+             if (between(min.(x) /min.(y), 0.9, 1.1) & between(max.(x) /max.(y), 0.9, 1.1) ) {  # When x&y differ slightly; keep the same scale
+               pr.(c(x, y), NA, 0.13)
+             } else {
+               pr.(x, NA, 0.13)  # When x & y differ largely; change proper scale to see easily
+             }
+           }
+  ylim2 <- if (!is.null(ylim)) {
+               pr.(y, ylim, 0.13)
+           } else {
+             if (between(min.(x) /min.(y), 0.9, 1.1) & between(max.(x) /max.(y), 0.9, 1.1) ) {  # When x&y differ slightly; keep the same scale
+               pr.(c(x, y), NA, 0.13)
+             } else {
+               pr.(y, NA, 0.13)
+             }
+           }
+
   if (fix == TRUE) {  # Wnen the same scale on both x and y-axis is desired
     def.(c('xlim2', 'ylim2'), list(range(xlim2, ylim2), range(xlim2, ylim2)))
   }
+
   ## Linear fitting
   draw_linearFit <- function(...) {
     qx <- seq(xlim2[1], xlim2[2], length.out = 100)
@@ -1787,17 +1813,18 @@ corp. <- function(d, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = N
     str_sub(colpal, end = -2) %>% tolower() %>% col_tr.(., 0.5)  # Remove the last 's' like 'Greys' --> 'Grey' --> 'grey'
   }
   if (li == TRUE) draw_linearFit()
-  if (li == FALSE && el == TRUE) draw_ellipse()  # Modified ecllipse
+#  if (li == FALSE && el == TRUE) draw_ellipse()  # Modified ecllipse
+  if (el == TRUE) draw_ellipse()  # Modified ecllipse
   if (nrow(d) >= 20) {
     points(x, y, pch = 19, lwd = 0.95, cex = 1.3, col = color)
   } else {
     points(x, y, pch = 21, lwd = 1.1, cex = 1.2, bg = color); points(x, y, pch = 21, lwd = 0.7, cex = 0.75)
   }
   plot_frame.(xlim2=xlim2, ylim2=ylim2, tcl=-par('tcl'), padj=-0.2, bty='l', xlab=xlab, ylab=ylab, yline=yline)
-  if (lege == TRUE) {
-    textP <- text_pos()
-    text3(textP)
-  }
+#  if (lege == TRUE) {
+#    textP <- text_pos()
+#    text3(textP)
+#  }
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
   gp.()  # Get back to the default fear of using mar
 # corp.(iris[3:4])
@@ -2469,7 +2496,8 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
   pos_range <- {range(pos) +0.5 *c(-1, 1)} %>% delta.() %>% {. *0.05}  # Spread out by 5%
   pos_lim <- {range(pos) +0.5 *c(-1, 1)} %>% {if (!xyChange) c(.[1] -pos_range, .[2]) else c(.[1], .[2] +pos_range)}
   bar_lim <- {if (!cum && !all(is.na(erH))) erH else apply(mat_avg, 2, sum.)} %>%  # error bar or cumulative bar
-             {c(0, max.(.))} %>% pr.(., ylim, 0.13)
+             {c(0, max.(.))} %>%
+             pr.(., ylim, 0.13)
   par(mar = if (!xyChange) c(2.4, 4, 0.5, 1) else c(0.5, 5.5, 1.5, 0.5), mgp = if (!xyChange) c(0, 0.4, 0) else c(0, 0.2, 0), ann = F)
   plot.new()
   plot.window(xlim = if(!xyChange) pos_lim else bar_lim, ylim = if(!xyChange) bar_lim else pos_lim)
@@ -2541,6 +2569,115 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
   if (names(dev.cur()) == 'cairo_pdf') skipMess.(dev.off())
 # barp.(iris)  barp.(iris,cum=T)  barp.(iris,xyChange=T,rot=25)  barp.(iris,cum=T,xyChange=T)  barp.(iris, elementChange=T,cex=.9)
 # barp.(iris[-5],spacer=-0.1)  barp.(iris, lege_ord=c(3,1,2)) barp.(iris[4:5], sel=3:1)
+}
+
+
+## Super mimizu: horizontal barplot == (2023-09-28) ========================
+smz. <- function(d, sel = NULL, pareto = F, this = NULL,  # this means the hightlight No.
+                   xlim = NA, ylim = NA, xlab = NULL, ylab = NULL, name = NULL, col = NULL, cex = NULL, PDF = T, ...) {
+  query_lib.(berryFunctions)
+
+  ## tuning the data set
+  if (!is.data.frame(d)) stop('The data should be a data frame ...\n\n', call. = F)
+  tab_lgl <- map_lgl(d, ~ is.character(.) | is.factor(.))
+  num_lgl <- sapply(d, is.numeric)
+  tab_col <- choice.(names(d)[tab_lgl], note = 'ID column', chr = T, one = T)
+  num_col <- choice.(names(d)[num_lgl], note = 'Numeric column', chr = T, one = T)
+  if (is.null(tab_col) || is.null(num_col)) stop('The columns of the data should have [chr] [num] ...\n\n', call. = F)
+
+  ## add error bar into the data
+  d <- d[c(tab_col, num_col)] %>%
+       .[complete.cases(.), ] %>%
+       group_by(!!tab_col := factor(get(tab_col), levels = unique(d[[tab_col]]))) %>%  # keep original order as you see
+       summarise_all(
+         list(
+           n = ~ n(),  # none of dot
+           avg = ~ mean.(.),
+           lower = ~ if_else(n == 1, NA_real_, mean.(.) - sd.(.)),
+           upper = ~ if_else(n == 1, NA_real_, mean.(.) + sd.(.)),
+           m = ~ min.(.),
+           M = ~ max.(.),
+           p5 = ~ percentile.(., probs = 0.05),
+           p50 = ~ percentile.(., probs = 0.5),
+           p95 = ~ percentile.(., probs = 0.95)
+         )
+       ) %>%
+       rename(!!num_col := avg)
+
+  ## reorder
+  if (!is.null(sel)) d <- d[sel, ]
+  if (pareto == TRUE) d <- d %>% {if (anyNA(d$M)) arrange(., desc(!!rlang::sym(num_col))) else arrange(., desc(M))}
+  d <- d %>% mutate(y = nrow(.) : 1)
+
+  ## color assignment
+  col_base <- '#4b4936'  # bar color: dark gray color2.(col, len = 3)
+  col_sub <- 'lightgoldenrod2'  # point color: wasabi '#4b4936' light gray '#e3e1d6'
+  col_base2 <- '#f3981c'  # orange
+  col_sub2 <- '#ee7d50'
+
+  col_bar <- rep(col_base, nrow(d))
+  col_point <- rep(col_sub, nrow(d))
+  if (!is.null(this)) {
+    col_bar[this] <- col_base2  # highlighted coloring
+    col_point[this] <- col_sub2
+  }
+
+  ## setting for plot
+  xlim2 <- pr.(range(d$m, d$M), xlim, expand_ratio = 0.13)
+  ylim2 <- c(0.3, nrow(d) + 0.7)  # pr.(c(0, nrow(d) + 1), ylim, expand_ratio = 0.12)
+
+  ## plot frame
+  plot_base <- function() {
+    if (Sys.info()['sysname'] == 'Darwin') grDevices::quartz.options(width = 5.0, height = 3.3)  # for Mac
+    if (Sys.info()['sysname'] == 'Linux') options(repr.plot.width = 5.0, repr.plot.height = 3.3)  # for JupyterLab; confirm by options()$bitmapType
+    if (Sys.info()['sysname'] == 'windows') grDevices::windows.options(width = 5.0, height = 3.3)  # for Windows
+    par(xaxs = 'i', yaxs = 'i', ann = F, mar = c(2.5, 7, 0.5, 1))
+    plot.new()
+    plot.window(xlim = xlim2, ylim = ylim2)
+
+    abline(h = 1 : nrow(d), col = 'grey85', lty = 3, lwd = 1)
+    for (i in 1:2) axis(1, at = axisFun.(xlim2, n = 5)[[i]], labels = (i == 1), cex.axis = 1, padj = -0.1, tcl = par('tcl') / i, lend = 'butt')
+    axis(2, at = 1 : nrow(d), labels = F, tcl = - par('tcl'), lend = 'butt')
+    box()
+    xlabcex <- whichSize.(ref = nchar(xlab %||% num_col), vec = c(15, 35, 50), c(1, 0.8, 0.5))
+    mtext(xlab %||% num_col, side = 1, las = 1, cex = xlabcex, family = jL.(xlab %||% num_col), line = par('mar')[1] -1.00)
+
+    name2 <- name %||% d[[tab_col]]
+    name_len <- stringi::stri_numbytes(name2) %>% max.()  # Count including multi bytes char and space
+    xPos <- par('usr')[1] -0.025 *delta.(par('usr')[1:2])
+    cexlabel <- cex %||% whichSize.(ref = name_len, vec = c(4, 8, 15, 35), c(1.3, 1, 0.75, 0.5))
+    text(x = xPos, y = d$y, labels = name2, adj = c(1, 0.5), xpd = T, cex = cexlabel, family = jL.(d[[tab_col]]), col = col_bar)
+  }
+
+
+  ## plot with graphic type
+  plot_paint <- function() {
+    for (i in 1 : nrow(d)) {
+      if (d$n[i] == 1) {
+      ## bar plot
+      # xleft <- d[[i, num_col]] %>% ifelse(. > 0, par('usr')[1], .)  # mean > 0
+      # xright <- d[[i, num_col]] %>% ifelse(. < 0, par('usr')[3], .) # mean < 0
+      # rect(xleft, d$y[i] + 0.25, xright, d$y[i] - 0.25, col = col_tr.(col_bar[i], tr = 0.35), border = F)
+        points(d[[i, num_col]], d[[i, 'y']], pch = 19, col = col_tr.(col_point[i], tr = 0.9, lwd = 1.3, cex = 1))
+      } else {
+      ## error bar
+      # arrows(d[[i, 'lower']], d[[i, 'y']], d[[i, 'upper']], d[[i, 'y']], angle = 90, code = 3, length = 0.03, lwd = 0.8, col = col_bar[i])
+      ## https://albert-rapp.de/posts/ggplot2-tips/11_rounded_rectangles/11_rounded_rectangles.html
+        berryFunctions::roundedRect(d$m[i], d$y[i] - 0.25, d$M[i], d$y[i] + 0.25, col = col_tr.(col_bar[i], tr = 0.35), border = F, rounding = 0.55)
+      # berryFunctions::roundedRect(d$p5[i], d$y[i] - 0.25, d$p95[i], d$y[i] + 0.25, col = col_tr.(col_bar[i], tr = 0.35), border = F, rounding = 0.5)
+        lines(x = c(d$p5[i], d$p5[i]), y = c(d$y[i] - 0.2, d$y[i] + 0.2), col = col_tr.(col_bar[i], tr = 0.45), lwd = 0.9)
+        lines(x = c(d$p50[i], d$p50[i]), y = c(d$y[i] - 0.2, d$y[i] + 0.2), col = col_tr.(col_bar[i], tr = 0.45), lwd = 0.9)
+        lines(x = c(d$p95[i], d$p95[i]), y = c(d$y[i] - 0.2, d$y[i] + 0.2), col = col_tr.(col_bar[i], tr = 0.45), lwd = 0.9)
+        points(d[[i, num_col]], d$y[i], pch = 19, col = col_tr.(col_point[i], tr = 0.9), lwd = 1.3, cex = 1.5)  # mean
+      }
+    }
+  }
+
+  plot_base()
+  plot_paint()
+  if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
+  gp.()
+# smz.(diamonds[1:2], this = 2, pareto = T)
 }
 
 
