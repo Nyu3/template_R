@@ -366,6 +366,45 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
 }  # END of pp.()
 
 
+## Get Sdorpion csv data == (2023-10-17) ========================
+pk. <- function(excel = F, ...) {
+  tmp <- pp.()
+  out <- tmp[-1, ] %>%
+    mutate(
+      タグ1 = タグ1 %>% {case_when(!is.na(.) ~ str_sub(., 3, -3), TRUE ~ .)},
+      タグ2 = タグ2 %>% {case_when(!is.na(.) ~ str_sub(., 3, -3), TRUE ~ .)},
+      タグ3 = タグ3 %>% {case_when(!is.na(.) ~ str_sub(., 3, -3), TRUE ~ .)},
+      タグ4 = タグ4 %>% {case_when(!is.na(.) ~ str_sub(., 3, -3), TRUE ~ .)}
+    ) %>%
+    rename(砥粒種 := タグ1, 粒度 := タグ2, ID := タグ3, 倍率 := タグ4) %>%
+    hablar::retype() %>%
+    mutate(
+      面積 = 面積 / (倍率 / 100) ^ 2,
+      包絡面積 = 包絡面積 / (倍率 / 100) ^ 2,
+      矩形面積 = 矩形面積 / (倍率 / 100) ^ 2,
+      周囲長 = 周囲長 / (倍率 / 100),
+      水平フェレ径 = 水平フェレ径 / (倍率 / 100),
+      鉛直フェレ径 = 鉛直フェレ径 / (倍率 / 100),
+      等価円周 = 等価円周 / (倍率 / 100),
+      円相当径 = 円相当径 / (倍率 / 100),
+      包絡長 = 包絡長 / (倍率 / 100),
+      矩形長辺 = 矩形長辺 / (倍率 / 100),
+      矩形短辺 = 矩形短辺 / (倍率 / 100),
+      最大内接円 = 最大内接円 / (倍率 / 100),
+      最小外接円 = 最小外接円 / (倍率 / 100)
+    ) %>%
+    mutate(
+      針状比 = (圧縮度 / アスペクト比) / 2,
+      ギザ度 =  (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5
+    ) %>%
+    relocate(針状比, ギザ度, .before = 面積) %>%
+    rename(lot := ロットナンバー, date := アップロード日)
+  
+  if (excel == TRUE) write2.(out)
+  return(out)
+}
+
+
 ## Transform list data to tibble == (2023-09-06) ========================
 list2tibble. <- function(dL, ord = F, ...) {
   query_lib.(naturalsort)
@@ -710,12 +749,12 @@ stats. <- function(d, transpose = F, split = F, ...) {
 }
 
 
-## summary for counting & one function == (2023-01-06) ========================
+## summary for counting & one function == (2023-10-16) ========================
 smry. <- function(d, f = 'mean', name = 'n', div = NULL, ...) {
   query_lib.(naturalsort)
   d <- list2tibble.(d)
   d <- d %>% select_if(~ !is.list(.)) %>% time2.(div = div)
-  f0 <- f %>% gsub('ave|average|mean|mean\\.', 'mean.', .) %>%
+  f0 <- f %>% gsub('ave|avg|average|mean|mean\\.', 'mean.', .) %>%
               gsub('sd|sd\\.|std|stdev', 'sd.', .) %>%
               gsub('quantile|quantile\\.|parcent|percent|percentile|percentile\\.', 'percentile.', .)
   if (str_detect(f0, '\\(x\\)|\\(x,')) f0 <- str_c('function(x) ', f0) %>% {eval(parse(text = .))}
@@ -729,7 +768,8 @@ smry. <- function(d, f = 'mean', name = 'n', div = NULL, ...) {
            pivot_longer(cols = everything()) %>%
            group_by(name) %>%
            summarise_all(.funs = list(
-             n = length., sum = sum., ave = mean., std = sd., range = delta., max = max., min = min., skewness = skew., kurtosis = kurt.)
+             n = length., sum = sum., median = median., avg = mean., std = sd., robust_std = sd2., range = delta., max = max., min = min.,
+             skewness = skew., kurtosis = kurt., cv = cv., p5 = p5., p50 = p50., p95 = p95.)
            )
     return(out)
   }
@@ -740,12 +780,14 @@ smry. <- function(d, f = 'mean', name = 'n', div = NULL, ...) {
     tmp2 <- d %>% group_by(across(all_of(tab_col))) %>% select_if(is.numeric) %>% {
               if (f != 'mean') {
                 summarise_all(., .funs = list(
-                  n = length., sum = sum., ave = mean., std = sd., range = delta., max = max., min = min., skewness = skew., kurtosis = kurt., tmp = f0)
+                  n = length., sum = sum., median = median., avg = mean., std = sd., robust_std = sd2., range = delta., max = max., min = min.,
+                  skewness = skew., kurtosis = kurt., cv = cv., p5 = p5., p50 = p50., p95 = p95., tmp = f0)
                 ) %>%
                 rename(!!f := tmp)
               } else {
                 summarise_all(., .funs = list(
-                  n = length., sum = sum., ave = mean., std = sd., range = delta., max = max., min = min., skewness = skew., kurtosis = kurt.)
+                  n = length., sum = sum., median = median., avg = mean., std = sd., robust_std = sd2., range = delta., max = max., min = min.,
+                  skewness = skew., kurtosis = kurt., cv = cv., p5 = p5., p50 = p50., p95 = p95.)
                 )
               }
             }
@@ -958,7 +1000,7 @@ colGra. <- function(d, color, ColorSteps = 13, ...) {
 }
 
 
-## Auto color assignment == (2023-09-26) ========================
+## Auto color assignment == (2023-10-16) ========================
 color2. <- function(color = NULL, len = NULL, ...) {
   query_lib.(RColorBrewer, scico, viridis, viridisLite)
   color_base <- c('black', 'firebrick1', 'deepskyblue4', 'antiquewhite3', 'sienna3', 'palevioletred3', 'seagreen4', 'dodgerblue3',
@@ -992,16 +1034,18 @@ color2. <- function(color = NULL, len = NULL, ...) {
     if (len == 1) {
       out <- 'grey13'
     } else if (len == 2) {
-      out <- c('black', 'grey60')
+      rand <- floor(runif(1, min = 1, max = 1 + length(color_base) - 1))
+      out <- c('black', color_base[-1][rand])
     } else if (len == 3) {  # color2.(len = ncol(iris[1:3]))
-      rand <- floor(runif(1, min = 1, max = 1 + 5))
-      out <- list(
-               color_base[1:3],
-               c('#003356', '#f3981c', '#e3e1d6'),  # navy, orange, accent
-               c('#bdc6ca', '#32495f', '#889291'),  # gray base, sub, accent
-               c('#99af87', '#4b4936', '#4a6b44'),  # green base (wasabi)
-               c('#ee7d50', '#68666c', '#d2ddde')  # rocky red, cloud grey, mouse grey
-             )[[rand]]
+      color3s <- list(
+                   color_base[1:3],
+                   c('#003356', '#f3981c', '#e3e1d6'),  # navy, orange, accent
+                   c('#bdc6ca', '#32495f', '#889291'),  # gray base, sub, accent
+                   c('#99af87', '#4b4936', '#4a6b44'),  # green base (wasabi)
+                   c('#ee7d50', '#68666c', '#d2ddde')  # rocky red, cloud grey, mouse grey
+                 )
+      rand <- floor(runif(1, min = 1, max = 1 + length(color3s)))
+      out <- color3s[[rand]]
     } else if (len < 6) {
       out <- viridisLite::viridis(len +1, option = 'A')[-(len +1)]
     } else {  # color2.(len = c(iris, iris, iris) %>% ncol())
@@ -1489,7 +1533,7 @@ dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = c(0, NA), na
 # if (length(xlim) == 2 && !is.na(xlim[1])) xlim <- NA  # the graph is hard to see if the x limit is set
   plt.(dL, ord=ord, sel=sel, xlim=xlim, ylim=ylim, name=name, col=col, lty=lty, lwd=lwd, grid=grid, xlab=xlab, ylab=ylab, legePos=legePos)
 
-  ## p-th pecentile
+  ## p-th percentile
   out <- map(dL, ~ cdf.(., p = c(0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9) /100)) %>%  # percentile
          bind_rows(., map(dL, ~ mean.(.$x))) %>%  # mean
          bind_rows(., map(dL, ~ sd.(.$x))) %>%  # sd
@@ -1832,9 +1876,9 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
 }
 
 
-## Clustering by probability ellipse == (2022-11-09) ========================
+## Clustering by probability ellipse == (2023-10-17) ========================
 ## [x,y,ID] preferable
-ellip. <- function(d, xlim = NA, ylim = NA, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
+ellip. <- function(d, xlim = NA, ylim = NA, sel = NULL, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
   query_lib.(ellipse, robustbase)
   ## data nesting
   d <- list2tibble.(d) %>% clean2.(na0 = F) %>% .[complete.cases(.), ] %>% split2.(nest = T)
@@ -1847,9 +1891,10 @@ ellip. <- function(d, xlim = NA, ylim = NA, name = NULL, col = 1:6, xlab = NULL,
 
   ## color
   if (is.character(col)) stop('Don\'t use color name like \'blue\'.  Use numbers 1 to 6\n\n', call. = F)
-  d <- d %>% mutate(colpal = n_cyc.(col, nrow(d)) %>% c('Greys', 'Reds', 'Blues', 'Greens', 'Oranges', 'Purples')[.])  # for brewer.pal()
+  d <- d %>% mutate(colpal = n_cyc.(col, nrow(d)) %>% c('Blues', 'Greens', 'Oranges', 'Greys', 'Reds', 'Purples')[.])  # for brewer.pal()
 
   ## labels
+  if (!is.null(sel)) d <- d[sel, ]
   xylabs <- select(d, data) %>% {.[[1]][[1]]} %>% names()
   xlab <- xlab %||% xylabs[1]
   ylab <- ylab %||% xylabs[2]
@@ -1890,10 +1935,10 @@ ellip. <- function(d, xlim = NA, ylim = NA, name = NULL, col = 1:6, xlab = NULL,
   for (i in seq(nrow(d))) {
     xy <- d %>% select(data) %>% .[[1]] %>% .[[i]]
     el <- d %>% select(ellipse) %>% .[[1]] %>% .[[i]]
-    polygon.(el, col = str_sub(d$colpal[i], end = -2) %>% tolower() %>% col_tr.(., 0.15))
+    polygon.(el, col = str_sub(d$colpal[i], end = -2) %>% tolower() %>% col_tr.(., 0.3))
   }
   plot_frame.(xlim2=xlim2, ylim2=ylim2, tcl=-par('tcl'), padj=-0.2, bty='l', xlab=xlab, ylab=ylab, yline=yline)
-  if (nrow(d) > 1) legen2.(name = name, legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0)
+  if (nrow(d) > 1) legen2.(name = name, legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0, cex = 0.85)
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
   gp.()  # Get back to the default fear of using mar
 # ellip.(iris)
@@ -1902,8 +1947,8 @@ ellip. <- function(d, xlim = NA, ylim = NA, name = NULL, col = 1:6, xlab = NULL,
 }
 
 
-## Transformed a tibble for boxplot2. == (2023-09-12) ========================
-box2nest. <- function(d, sel = NULL, time_div = NULL, ...) {  # sel works on [y1,y2, ...] or [ID, y1,y2, ...]
+## Transformed a tibble for boxplot2. == (2023-10-16) ========================
+box2nest. <- function(d, time_div = NULL, ...) {
   ## select data
   if (is.atomic(d)) d <- tibble(x = d)
   d <- list2tibble.(d) %>%
@@ -1919,7 +1964,7 @@ box2nest. <- function(d, sel = NULL, time_div = NULL, ...) {  # sel works on [y1
   ## [y1,y2, ...]
   if (length(tab_col) == 0) {
     out <- tibble(row_title = NA_character_, tab = NA_character_, factors = NA_character_,
-                  value = tibble(level = names(d), value = as.list(d)) %>% {if (!is.null(sel)) .[sel, ] else .} %>% list())
+                  value = tibble(level = names(d), value = as.list(d)) %>% list())
   }
 
   ## [ID, y1,y2, ...]
@@ -1930,7 +1975,6 @@ box2nest. <- function(d, sel = NULL, time_div = NULL, ...) {  # sel works on [y1
              group_nest(!!tab_col := get(tab_col)) %>%
              mutate(!!num_col[i] := map(data, ~ pull(.))) %>%
              select(!data) %>%
-             {if (!is.null(sel)) .[sel, ] else .} %>%
              list()
       out <- if (i == 1) {
                tibble(row_title = NA_character_, tab = NA_character_, factors = NA_character_, !!num_col[i] := tmp)
@@ -2115,23 +2159,30 @@ box1plot. <- function(yL, type = 'half', col, xlab = NULL, ylab = NULL, ylim = N
 }
 
 
-## Boxplot oriented for quantile limit and full/half box == (2023-09-12) ========================
-box2. <- function(d, type = c('half', 'full')[1], sel = NULL, col = NULL, pareto = F, cut = F, xlab = NULL, ylab = NULL, ylim = NA,
+## Boxplot oriented for quantile limit and full/half box == (2023-10-16) ========================
+box2. <- function(d, type = c('half', 'full')[1], sel = NULL, name = NULL, col = NULL, pareto = F, cut = F, xlab = NULL, ylab = NULL, ylim = NA,
                   wid = 0.65, jit = T, val = T, n = F, rot = 0, cex_xname = 0.8, digit = NULL, time_div = NULL, PDF = T, ...) {
   ## d <- sample_n(diamonds[-8:-10], 200)
   ## transform data
-  tmp <- box2nest.(d, sel, time_div)
+  tmp <- box2nest.(d, time_div)
 
-  ## y-axts label
-  ylab = if (nrow(tmp) == 1 && ncol(tmp) == 4) ylab %||% names(tmp)[4] else ''
+  ## y-axis label
+  ylab <- if (nrow(tmp) == 1 && ncol(tmp) == 4) ylab %||% names(tmp)[4] else ''
 
   ## make the size of figure margin for plot number
   if (!is.na(tmp$row_title[1]) || ncol(tmp) > 4) par(mfrow = c(nrow(tmp), ncol(tmp) - 3), oma = c(0, 3, 2.5, 0))
 
   ## boxplot
   for (i in 1:nrow(tmp)) for (j in 4:ncol(tmp)) {
+    ## sel works on [y1,y2, ...] or [ID, y1,y2, ...]; "name" is only available with single-row box plot
     tmpij <- tmp[[i, j]][[1]]
-    yL <- tmpij[[2]] %>% map(~ {if (all(is.na(.))) NA_real_ else .[!is.na(.)]}) %>% set_names(tmpij[[1]])
+    len <- seq_along(tmpij[[1]])
+    if (nrow(tmp) == 1 && !is.null(name)) tmpij[[1]] <- name[len]
+    if (nrow(tmp) == 1 && !is.null(sel)) tmpij <- c(sel, len) %>% .[. <= max(len)] %>% unique() %>% tmpij[., ]
+
+    yL <- tmpij[[2]] %>%
+          map(~ {if (all(is.na(.))) NA_real_ else .[!is.na(.)]}) %>%
+          set_names(tmpij[[1]])
 
     ## color
     col2 <- color2.(col, len = length(yL)) %>% set_names(names(yL))
@@ -2974,7 +3025,6 @@ clean2. <- function(d, na0 = T, ...) {
 # tibble(x=c(NA,1:2,NA,4:5), y=c(NA, NA, NaN, Inf,1,2),z=rep(NA,6)) %>% clean2.(na0=F)
 }
 
-
 ## Omit undesirable values == (2023-07-28) ========================
 omit2. <- function(x) {
   tf_vec <- !is.na(x) & !is.nan(x) & !is.infinite(x)
@@ -3003,6 +3053,7 @@ rescaling. <- function(x) {  # convert into [0, 1]
   }
 # rescaling.(iris) %>% box2.
 }
+
 scale. <- function(x, scale_range = c(0, 1)) {  # Normalization: [0,1], Standarization: (x-u) /sd
   scale0. <- function(x, scale_range) {
     scale(x, center = min.(x), scale = delta.(x)) %>%
@@ -3019,11 +3070,15 @@ scale. <- function(x, scale_range = c(0, 1)) {  # Normalization: [0,1], Standari
 # scale.(iris) %>% box2.  scale.(iris, c(-1, 1)) %>% box2.
 }
 
-## Short cut to kill bothersome etc. == (2022-11-07) ========================
+## Short cut to kill bothersome etc. == (2023-10-16) ========================
 pmax. <- function(x) omit2.(x) %>% pmax()
+
 pmin. <- function(x) omit2.(x) %>% pmin()
+
 any. <- function(x) as.logical(x) %>% any(., na.rm = T)
+
 ymd. <- function(x) if (is.POSIXct (x)) floor_date(x, 'day') %>% as.character() %>% gsub(' JST', '', .) else x
+
 range. <- function(x) {
   if (is.atomic(x)) {
     omit2.(x) %>%  {if (is.numeric(.) || is_time.(.)) range(.) else if (is.character(.) || is.factor(.)) range(seq(.)) else NA_real_}
@@ -3040,6 +3095,7 @@ range. <- function(x) {
   }
 # range.(economics)  range.(economics[1])  range.(iris[5])
 }
+
 mean. <- function(x, trim = 0) {  # mean0.(rep(NA, 3))  mean0.(rep(NA_real_, 3))
   mean0. <- function(x, trim = 0) {
     if (is.atomic(x) && is.numeric(x) || is_time.(x) || is.logical(x)) {
@@ -3056,7 +3112,9 @@ mean. <- function(x, trim = 0) {  # mean0.(rep(NA, 3))  mean0.(rep(NA_real_, 3))
     NA_real_
   }
 }
-prop_mean. <- function(x) {  # propotional mean
+
+## propotional mean
+prop_mean. <- function(x) {
   if (is.atomic(x)) {
     omit2.(x) %>% {sum(. ^2) /sum(.)}
   } else if (is.list(x)) {
@@ -3065,7 +3123,9 @@ prop_mean. <- function(x) {  # propotional mean
     NA_real_
   }
 }
-geo_mean. <- function(x) {  # geometric mean
+
+## geometric mean
+geo_mean. <- function(x) {
   geo_mean0. <- function(x) {
     if (is.atomic(x) && is.numeric(x)) {
       if (any(x[!is.na(x)] <= 0)) {
@@ -3085,7 +3145,9 @@ geo_mean. <- function(x) {  # geometric mean
     NA_real_
   }
 }
-har_mean. <- function(x) {  # harmonic mean
+
+## harmonic mean
+har_mean. <- function(x) {
   har_mean0. <- function(x) {
     if (is.atomic(x) && is.numeric(x)) {
       if (any(x[!is.na(x)] == 0)) {
@@ -3105,6 +3167,7 @@ har_mean. <- function(x) {  # harmonic mean
     NA_real_
   }
 }
+
 median. <- function(x) {
   if (is.atomic(x) && is.numeric(x) || all(is_time.(x))) {
     omit2.(x) %>% median() %>% ymd.()
@@ -3114,6 +3177,7 @@ median. <- function(x) {
     NA_real_
   }
 }
+
 percentile. <- function(x, probs = 0.50) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% quantile(., probs = probs, name = F)
@@ -3123,6 +3187,11 @@ percentile. <- function(x, probs = 0.50) {
     NA_real_
   }
 }
+
+p5. <- function(x) percentile.(x, probs = 0.05)
+p50. <- function(x) percentile.(x, probs = 0.50)
+p95. <- function(x) percentile.(x, probs = 0.95)
+
 max. <- function (x, Nth = 1) {
   max0. <- function(x, Nth = 1) if (is.atomic(x) && is.numeric(x) || is_time.(x)) omit2.(x) %>% sort(., decreasing = T) %>% .[Nth] %>% ymd.() else NA_real_
   if (is.atomic(x)) {
@@ -3133,6 +3202,7 @@ max. <- function (x, Nth = 1) {
     NA_real_
   }
 }
+
 min. <- function(x, Nth = 1) {
   min0. <- function(x, Nth = 1) if (is.atomic(x) && is.numeric(x) || is_time.(x)) omit2.(x) %>% sort(., decreasing = F) %>% .[Nth] %>% ymd.() else NA_real_
   if (is.atomic(x)) {
@@ -3143,6 +3213,7 @@ min. <- function(x, Nth = 1) {
     NA_real_
   }
 }
+
 max2. <- function(x, na = F) {
   max2_base. <- function(x, na) {
     if (! is.atomic(x) || ! is.numeric(x)) return(NA_real_)
@@ -3158,6 +3229,7 @@ max2. <- function(x, na = F) {
     NA_real_
   }
 }
+
 min2. <- function(x, na = F) {
   min2_base. <- function(x, na) {
     if (!is.atomic(x) || !is.numeric(x)) return(NA_real_)
@@ -3173,6 +3245,7 @@ min2. <- function(x, na = F) {
     NA_real_
   }
 }
+
 sd. <- function(x) {
   if (is.atomic(x) && !(is.character(x) && !is.factor(x))) {
     omit2.(x) %>% sd()
@@ -3182,7 +3255,9 @@ sd. <- function(x) {
     NA_real_
   }
 }
-sd2. <- function(x) {  # robust deviation: https://stats.stackexchange.com/questions/123895/mad-formula-for-outlier-detection
+
+## robust deviation: https://stats.stackexchange.com/questions/123895/mad-formula-for-outlier-detection
+sd2. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {median(abs(. -median(.))) /0.6745}
   } else if (is.list(x)) {
@@ -3191,7 +3266,9 @@ sd2. <- function(x) {  # robust deviation: https://stats.stackexchange.com/quest
     NA_real_
   }
 }
-sd_reg. <- function(x) {  # regular sd
+
+## regular sd
+sd_reg. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {sd.(.) /sqrt(mean.(.) *(length(.) -1))}
   } else if (is.list(x)) {
@@ -3200,6 +3277,7 @@ sd_reg. <- function(x) {  # regular sd
     NA_real_
   }
 }
+
 var. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% var(., y = NULL)
@@ -3209,6 +3287,7 @@ var. <- function(x) {
     NA_real_
   }
 }
+
 skew. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {(. -mean(.)) ^3 /sd(.) ^3} %>% mean()
@@ -3218,6 +3297,7 @@ skew. <- function(x) {
     NA_real_
   }
 }
+
 skew_reg. <- function(x) {
   skew_reg0. <- function(x) if (is.atomic(x) && is.numeric(x) && length(x[!is.na(x)]) > 2) {
     omit2.(x) %>% {skew.(.) *(length(.) -1) ^0.5 /(length(.) -2)}
@@ -3232,6 +3312,7 @@ skew_reg. <- function(x) {
     NA_real_
   }
 }
+
 kurt. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {(. -mean(.)) ^4 /sd(.) ^4} %>% mean(.)
@@ -3241,6 +3322,7 @@ kurt. <- function(x) {
     NA_real_
   }
 }
+
 kurt_reg. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {kurt.(.) *(length(.) -1) /(length(.) ^2 -3 *length(.) +3)}
@@ -3250,6 +3332,7 @@ kurt_reg. <- function(x) {
     NA_real_
   }
 }
+
 delta. <- function(x, unit = 'day') {
   delta0. <- function(x, unit = 'day') {
     if (is.atomic(x) && is.numeric(x)) {
@@ -3268,6 +3351,7 @@ delta. <- function(x, unit = 'day') {
     NA_real_
   }
 }
+
 iqr. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% IQR()
@@ -3277,7 +3361,9 @@ iqr. <- function(x) {
     NA_real_
   }
 }
-mmr. <- function(x) {  # min-max ratio
+
+## min-max ratio
+mmr. <- function(x) {
   mmr0. <- function(x) if (is.atomic(x) && is.numeric(x) && !all(is.na(x))) omit2.(x) %>% {min(.) /max(.)} else NA_real_
   if (is.atomic(x)) {
     mmr0.(x)
@@ -3287,7 +3373,9 @@ mmr. <- function(x) {  # min-max ratio
     NA_real_
   }
 }
-cv. <- function(x) {  # coefficient of variance
+
+## coefficient of variance
+cv. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {sd(.) /mean(.)}
   } else if (is.list(x)) {
@@ -3296,7 +3384,9 @@ cv. <- function(x) {  # coefficient of variance
     NA_real_
   }
 }
-rms. <- function(x) {  # root mean square
+
+## root mean square
+rms. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {sqrt(sum(. ^2)/length(.))}
   } else if (is.list(x)) {
@@ -3305,7 +3395,9 @@ rms. <- function(x) {  # root mean square
     NA_real_
   }
 }
-rmse_stats. <- function(x) {  # root mean squared error (not for model evaluation)
+
+## root mean squared error (not for model evaluation)
+rmse_stats. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {sqrt(sum((. -mean(.)) ^2)/length(.))}
   } else if (is.list(x)) {
@@ -3314,7 +3406,9 @@ rmse_stats. <- function(x) {  # root mean squared error (not for model evaluatio
     NA_real_
   }
 }
-msle. <- function(x) {  # mean squared logarithmic error
+
+## mean squared logarithmic error
+msle. <- function(x) {
   msle0. <- function(x) if (is.atomic(x) && is.numeric(x)) {
     if (min(x, na.rm = T) > -1) {
       omit2.(x) %>% {sum(log(1 +.) -log(1 +mean(.)))/length(.)}
@@ -3330,7 +3424,9 @@ msle. <- function(x) {  # mean squared logarithmic error
     NA_real_
   }
 }
-mae. <- function(x) {  # mean absolute error
+
+## mean absolute error
+mae. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {sum(abs(. -mean(.)))/length(.)}
   } else if (is.list(x)) {
@@ -3339,7 +3435,9 @@ mae. <- function(x) {  # mean absolute error
     NA_real_
   }
 }
-ddi. <- function(x) {  # declining distribution index
+
+## declining distribution index
+ddi. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {sum(abs(. -mean(.))) *length(.) /(2 *(length(.) -1) *sum(.))}
   } else if (is.list(x)) {
@@ -3348,7 +3446,8 @@ ddi. <- function(x) {  # declining distribution index
     NA_real_
   }
 }
-balance. <- function(x) {  # index of balance
+## index of balance
+balance. <- function(x) {
   balance0. <- function(x) if (is.atomic(x) && is.numeric(x)) {
     tmp <- omit2.(x) %>% {. -median(.)}
     tmp_posi <- tmp[tmp >= 0] %>% sum()
@@ -3365,7 +3464,9 @@ balance. <- function(x) {  # index of balance
     NA_real_
   }
 }
-gini. <- function(x) {  # Gini coefficient
+
+## Gini coefficient
+gini. <- function(x) {
   gini0. <- function(x) {
     if (is.atomic(x) && is.numeric(x)) {
       x <- omit2.(x) %>% .[order(., decreasing = F)]
@@ -3387,6 +3488,7 @@ gini. <- function(x) {  # Gini coefficient
     NA_real_
   }
 }
+
 ## Hurst exponent: https://ito-hi.blog.ss-blog.jp/2016-10-15
 hurst. <- function(x) {  # the trend keeping ability random ~ 0.5, plus regular ~ 0.5-1, minus ~ 0-0.5
   if (is.atomic(x)) {
@@ -3397,7 +3499,9 @@ hurst. <- function(x) {  # the trend keeping ability random ~ 0.5, plus regular 
     NA_real_
   }
 }
-cf. <- function(x) {  # crest factor:= peak /RMS
+
+## crest factor:= peak /RMS
+cf. <- function(x) {
   if (is.atomic(x) && is.numeric(x)) {
     omit2.(x) %>% {max(.) /rms.(.)}
   } else if (is.list(x)) {
@@ -3406,7 +3510,9 @@ cf. <- function(x) {  # crest factor:= peak /RMS
     NA_real_
   }
 }
-sfm. <- function(x) {  # spectral flatness measure := geometric mean /arithmetric mean
+
+## spectral flatness measure := geometric mean /arithmetric mean
+sfm. <- function(x) {
   sfm0. <- function(x) {
     if (is.atomic(x) && is.numeric(x)) {
       if (mean(x, na.rm = T) != 0) {
@@ -3426,6 +3532,7 @@ sfm. <- function(x) {  # spectral flatness measure := geometric mean /arithmetri
     NA_real_
   }
 }
+
 ## Mean crossing rate
 mcr. <- function(x, zero = F) {
   ## https://www.researchgate.net/publication/323935725_Analyzing_User_Emotions_via_Physiology_Signals
@@ -3446,6 +3553,7 @@ mcr. <- function(x, zero = F) {
     NA_real_
   }
 }
+
 which.max. <- function(x, Nth = 1) {  # which.max0.(c(9, NA, 8:1), 1:2)  which.max0.(c(1,1,1))
   which.max0. <- function(x, Nth = 1:1) {
     if (is.atomic(x) && is.numeric(x) || is_time.(x)) max.(x, Nth) %>% map_dbl(~ which(x == .)) else NA_real_
@@ -3463,6 +3571,7 @@ which.max. <- function(x, Nth = 1) {  # which.max0.(c(9, NA, 8:1), 1:2)  which.m
     NA_real_
   }
 }
+
 which.min. <- function(x, Nth = 1) {  # which.min0. (c (3,-10,5,-88), 1:2)
   which.min0. <- function(x, Nth = 1:1) {
     if (is.atomic(x) && is.numeric(x) || is_time.(x)) min.(x, Nth) %>% map_dbl(~ which(x == .)) else NA_real_
@@ -3480,6 +3589,7 @@ which.min. <- function(x, Nth = 1) {  # which.min0. (c (3,-10,5,-88), 1:2)
     NA_real_
   }
 }
+
 sum. <- function(x) {  # Note; sum function eats T/F
   if (is.atomic(x) && is.numeric(x) || is.logical(x)) {
     omit2.(x) %>% sum()
@@ -3489,6 +3599,7 @@ sum. <- function(x) {  # Note; sum function eats T/F
     NA_real_
   }
 }
+
 length. <- function(x) {
   if (is.atomic(x)) {
     omit2.(x) %>% length(.)
