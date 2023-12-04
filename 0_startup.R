@@ -417,7 +417,10 @@ pk. <- function(excel = T, ...) {
          relocate(モコ度, .before = 包絡度) %>%
          rename(lot := ロットナンバー, date := アップロード日)
 
-  if (excel == TRUE) write2.(out)
+  if (excel == TRUE) {
+    write2.(out)
+    cat('\n    Shape data created on your desktop', x, '...\n\n')
+  }
   return(out)
 }
 
