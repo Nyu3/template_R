@@ -410,9 +410,11 @@ pk. <- function(excel = T, ...) {
          ) %>%
          mutate(
            針状比 = (圧縮度 / アスペクト比) / 2,
-           ギザ度 =  (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5
+           ギザ度 =  (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5,
+           モコ度 = pi * 最大内接円 / 周囲長
          ) %>%
          relocate(針状比, ギザ度, .before = 面積) %>%
+         relocate(モコ度, .before = 包絡度) %>%
          rename(lot := ロットナンバー, date := アップロード日)
 
   if (excel == TRUE) write2.(out)
