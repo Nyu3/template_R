@@ -419,7 +419,7 @@ pk. <- function(excel = T, ...) {
 
   if (excel == TRUE) {
     write2.(out)
-    cat('\n    Shape data created on your desktop', x, '...\n\n')
+    cat('\n    Shape data created on your Desktop...\n\n')
   }
   return(out)
 }
