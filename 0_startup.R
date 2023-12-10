@@ -1358,7 +1358,7 @@ plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = p
 }
 
 
-## Quick plot == (2023-11-16) ========================
+## Quick plot == (2023-12-09) ========================
 plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, xlim = NA, ylim = NA, name = NULL,
                  type = c('l', 'p', 'pp', 'b', 'bb', 'h', 's')[1], col = NULL, col_flag = NULL, lty = NULL, lwd = NULL, pch = NULL,
                  add = 1, grid = T, rot = 0, cexlab = NULL, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, PDF = T, multi = F, ...)
@@ -1378,8 +1378,11 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
 
     ## list
     if ('list' %in% class(d)) {  # [[x1,y1], [x2,y2], ...]
-      if (map_lgl(d, ~ all(sapply(.x, is.numeric)) && ncol(.x) == 2) %>% all()) {
-        out <- tibble(legend = names(d) %||% str_c('data', seq(d)), data = d, color = color2.(col, len = length(d)), color_flag = list(color))
+       tmp_tf <- d[!sapply(d, is.null)] %>%
+                 map_lgl(~ all(sapply(., is.numeric)) && ncol(.) == 2) %>%
+                 all()
+      if (tmp_tf == TRUE) {
+        out <- tibble(legend = name %||% names(d) %||% str_c('data', seq(d)), data = d, color = color2.(col, len = length(d)), color_flag = list(color))
       } else {
         stop('Make the list data all [numeric].\n\n', call. = F)
       }
@@ -1511,7 +1514,7 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
              lwd = lwd %||% whichSize.(ref = nrow(out), vec = c(5, 10, 25, 50), mirror = c(1.5, 1.1, 0.8, 0.35)),
              pch_point = if (type[1] %in% c('p', 'b')) 1 else if (type[1] %in% c('pp', 'bb')) 19 else NA,
              pch_legend = if (anyNA(pch) && type[1] %in% c('p', 'pp', 'b', 'bb')) NA else pch_point,
-             cex_point = if_else(map_dbl(data, nrow) > 1000, 0.8, 1)
+             cex_point = map_dbl(out$data, function(x) ifelse(is.null(x), 0, nrow(x))) %>% {case_when(. > 1000 ~ 0.8, . == 0 ~ 0, TRUE ~ 1)}
            )
     return(out)
 
@@ -1537,6 +1540,7 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
   }
 
   for (i in seq(nrow(dn))) {
+    if (is.null(dn$data[[i]])) next
     x <- dn$data[[i]][1] %>% {if (map_lgl(., ~ is.character(.x) | is.factor(.x))) seq(nrow(.)) else unlist(.)}
     y <- dn$data[[i]][[2]]
     error_bar <- function() {
@@ -3174,7 +3178,7 @@ scale. <- function(x, scale_range = c(0, 1)) {  # Normalization: [0,1], Standari
 # scale.(iris) %>% box2.  scale.(iris, c(-1, 1)) %>% box2.
 }
 
-## Short cut to kill bothersome etc. == (2023-10-24) ========================
+## Short cut to kill bothersome etc. == (2023-12-10) ========================
 pmax. <- function(x) omit2.(x) %>% pmax()
 
 pmin. <- function(x) omit2.(x) %>% pmin()
@@ -3185,7 +3189,9 @@ ymd. <- function(x) if (is.POSIXct (x)) floor_date(x, 'day') %>% as.character() 
 
 range. <- function(x) {
   if (is.atomic(x)) {
-    omit2.(x) %>%  {if (is.numeric(.) || is_time.(.)) range(.) else if (is.character(.) || is.factor(.)) range(seq(.)) else NA_real_}
+    if (is.null(x)) NA_real_ else {
+      omit2.(x) %>%  {if (is.numeric(.) || is_time.(.)) range(.) else if (is.character(.) || is.factor(.)) range(seq(.)) else NA_real_}
+    }
   } else if (is.list(x)) {
     list2tibble.(x) %>%
     map_df(~ .x %>% omit2.() %>% {
