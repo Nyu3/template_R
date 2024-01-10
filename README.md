@@ -5,7 +5,7 @@ easy handler for R manipulation <br>
 *"pp.()"* function will be useful copy & paste tech when you don't feel like using bothersome read.csv() <br>
 Others are; <br>
 
-     Scatter plot | plt.(iris[4:5])
+ Scatter plot | plt.(iris[4:5])
               | plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
               | corp.(iris[3:4], el = T, li = F)
               | ellip.(iris)
