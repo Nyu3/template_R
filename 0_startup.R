@@ -189,7 +189,7 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
 }
 
 
-## Set arguments in the function which you're copying == (2023-10-19) ========================
+## Set arguments in the function which you're copying == (2023-12-11) ========================
 lazy_args. <- function(...) {
   chrs <- pp.(vectorize = T) %>% str_split('\n')
   lazy_do <- function(char, ...) {
@@ -206,6 +206,7 @@ lazy_args. <- function(...) {
   # if (length(semicolon_locate) != 0) for (i in semicolon_locate) str_sub(chr2, start = i, end = i) <- ','  # overwrite
     chr3 <- str_split(chr2, ',') %>% flatten_chr() %>% .[!. %in% '']
     if (length(chr3) == 0) return(NULL)
+    if (str_count(chr3[length(chr3)], '\\)') == 1) chr3[length(chr3)] <- gsub('\\)', '', chr3[length(chr3)])  # abc = T) --> abc = T
     tf <- str_detect(chr3, '=')  # the 1st always starts TRUE
     chr4 <- chr3[1]
     ctr <- 1
@@ -1201,7 +1202,7 @@ save2. <- function(name = NULL, wh = c(4.5, 3.3), ...) {
 }
 
 
-## Write list data to csv/xlsx file == (2023-11-22) ========================
+## Write list data to csv/xlsx file == (2023-12-11) ========================
 write. <- function(.d, name = NULL, enc = NULL, ...) {
   if ('list' %in% class(.d)) .d <- list2tibble.(.d)
   name <- {name %||% now2.()} %>% {if (str_detect(., '\\.csv')) . else str_c (., '.csv')}
@@ -1213,10 +1214,9 @@ write. <- function(.d, name = NULL, enc = NULL, ...) {
 write2. <- function(.d, name = NULL, sheet = NULL, ...) {
   query_lib.(writexl)
   if (!'list' %in% class(.d)) {
-#    dL <- .d %>% mutate_if(is_time., ~ str_c(.x, ' JST')) %>% list()
-    dL <- .d %>% list()
+    dL <- .d %>% mutate_if(is_time., ~ force_tz(.x, tzone = 'Asia/Tokyo')) %>% list()  # ~ str_c(.x, ' JST')
   } else {
-    dL <- .d %>% map(function(x) x %>% mutate_if(is_time., ~ str_c(.x, ' JST')))
+    dL <- .d %>% map(function(x) x %>% mutate_if(is_time., ~ force_tz(.x, tzone = 'Asia/Tokyo')))
   }
   names(dL) <- names(dL) %||% sheet %||% str_c('#', seq_along(dL))
   writexl::write_xlsx(dL, path = str_c(name %||% now2.(), '.xlsx'), format_headers = F)
@@ -1361,7 +1361,7 @@ plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = p
 ## Quick plot == (2023-12-09) ========================
 plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, xlim = NA, ylim = NA, name = NULL,
                  type = c('l', 'p', 'pp', 'b', 'bb', 'h', 's')[1], col = NULL, col_flag = NULL, lty = NULL, lwd = NULL, pch = NULL,
-                 add = 1, grid = T, rot = 0, cexlab = NULL, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, PDF = T, multi = F, ...)
+                 add = 1, grid = T, rot = 0, cexlab = NULL, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, PDF = T, multi = F)
 {  # sel is the order you want, item is to make item plot
 
   ## organize raw data & resolve nest type
@@ -1641,7 +1641,7 @@ dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = c(0, NA), na
 }
 
 
-## Cumulative ratio plot == (2023-10-23) ========================
+## Cumulative ratio plot == (2024-01-10) ========================
 crp. <- function(d, ord = F, sel = NULL, xlim = NA, ylim = c(-0.01, 1.05), name = NULL, col = NULL, grid = T,
                  lwd = NULL, xlab = NULL, ylab = NULL, legePos = c(0.05, 0.98), px = NULL, py = NULL, ext = F, ...) {
 
@@ -1649,7 +1649,7 @@ crp. <- function(d, ord = F, sel = NULL, xlim = NA, ylim = c(-0.01, 1.05), name 
   minmax <- unlist(dL) %>% range(., na.rm = T) %>% {. +delta.(.) *c(-1, +1) *0.03}
 
   ## color
-  col2 <- color2.(col, len = length(yL)) %>% set_names(names(yL))
+  col2 <- color2.(col, len = length(dL)) %>% set_names(names(dL))
 
   if (!exists('pLL_nu_lam')) {
     suppressMessages(devtools::source_url('https://github.com/Nyu3/psd_R/blob/master/PSD_archive.R?raw=TRUE'))
@@ -1774,7 +1774,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlim = NA, ylim = c(0, NA), 
 }
 
 
-## Pie chart for ratio == (2022-11-02) ========================
+## Pie chart for ratio == (2024-01-10) ========================
 pie. <- function(d, col = NULL, cex = 0.85, percent = F, digit = 1, cent_name = NULL,  ...) {
   if (is.data.frame(d)) {  # Only use categorical data
     tab_cols <- map_lgl(d, ~ is.character(.) | is.factor(.))
@@ -1794,7 +1794,7 @@ pie. <- function(d, col = NULL, cex = 0.85, percent = F, digit = 1, cent_name = 
 
   ## plot
   par(xaxs = 'i', yaxs = 'i', mar = c(1, 2, 1, 2), ann = F)
-  color <- color2.(col, len = length(dL[[i]])) %>% col_tr.(tr = 0.8)
+  color <- color2.(col, len = length(vec)) %>% col_tr.(tr = 0.8)
   vals <- if (percent == TRUE) {vec /sum(vec) *100} %>% round(., digit) else as.numeric(vec)
   names(vec) <- names(vec) %>% str_c(., '\n(', vals, ifelse(percent, '%)\n', ')\n'))
   pie(vec, col = color, border = 'grey13', clockwise = T, init.angle = 90, radius = 0.8, cex = cex)

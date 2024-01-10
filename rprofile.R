@@ -9,7 +9,7 @@
 ## Welcome message == (2020-10-24) ========================
 ## CAUTION: JupyterLab allows neither cat(), print() nor message() in the welcome message on .Rprofile
 ## https://stackoverflow.com/questions/37689694/real-time-printing-to-console-with-r-in-jupyter
-if (interactive()) cat('...Now loading...\n...')
+if (interactive()) cat('... Now loading ...\n|████████████████████████|')
 
 
 ## Install vital packages if necessary == (2023-06-13) ========================
@@ -90,17 +90,16 @@ yourname <- Sys.getenv('USERNAME')
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
   sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
-  options(showPackageStartupMessages = F)  # to suppress the 'utils' loading message
+# options(showPackageStartupMessages = F)  # to suppress the 'utils' loading message
   library('stats')  # to suppress filter() conflict
   library('MASS')  # to suppress select() conflict
   library('tidyverse')
-#  library('utils', quietly = T)  # to use pipe
+# library('utils', quietly = T)  # to use pipe
   get_source <- function(url_no = 1, file_no = 1) {
-    git_url <- file.path('https://github.com', c(
-                         'Nyu3/template_R/blob/master',
-                         'Nyu3/psd_R/blob/master',
-                         'readqadiv13/tuning_PSD/blob/main'
-               ))[url_no]
+    git_url <- file.path('https://github.com', c('Nyu3/template_R/blob/master',
+                                                 'Nyu3/psd_R/blob/master',
+                                                 'readqadiv13/tuning_PSD/blob/main')
+               )[url_no]
     git_file <- c('0_startup.R', 'PSD_archive.R', 'PSD_archive_generator.R', 'PSD_simulator.R')[file_no]
     filePATH <- paste0(file.path(git_url, git_file), '?raw=TRUE')
     script <- readLines(filePATH, encoding = 'UTF-8')
@@ -136,29 +135,30 @@ if (Sys.info()['sysname'] == 'Windows') {
 }
 
 
-## Hint message & delete objects == (2022-07-11) ========================
+## Hint message & delete objects == (2024-01-10) ========================
 tips <- "
-   plt.(iris[4:5])
-   plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
-   iplot.(us_rent_income[c(2,5)], rot = 35)
-   dens.(iris[4:5], cum = F)
-   crp.(iris[2:3])
-   hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
-   corp.(iris[3:4])
-   ellip.(iris)
-   box2.(iris, rot = 20, pareto = T, cut = T)
-   box2.(diamonds[1:1000, 1:3], mark = 'color')
-   box2.(id2y.(diamonds[1:1000, 1:3]))
-   box2.(case2.(us_rent_income[5], div = 100), col = 0)
-   box2.(time2.(economics[1:50, ], div = 'year'))
-   barp.(iris, xyChange = T, rot = 25)
-   barp.(iris, cum = T, xyChange = T)
-   pie.(iris[41:120,5], percent = T)
-   sp.(iris, col = 3)
-   stats.(iris)
-   smry.(iris, .f = 'sd(x) / mean(x)')
-   html.(starwars)
-...\n"
+ Scatter plot | plt.(iris[4:5])
+              | plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
+              | corp.(iris[3:4], el = T, li = F)
+              | ellip.(iris)
+              | sp.(iris, col = 3)
+    Histogram | hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
+    Pie chart | pie.(iris[41:120,5], percent = T)
+    Bar plots | barp.(iris, xyChange = T)
+              | barp.(iris, cum = T, xyChange = T)
+              | smz.(diamonds[1:2], this = 2, pareto = T)
+     KDE plot | dens.(iris[4:5], cum = F)
+              | crp.(iris[2:3])
+     Box plot | box2.(iris, rot = 20, pareto = T, cut = T)
+              | box2.(diamonds[1:1000, 1:3], mark = 'color')
+              | box2.(id2y.(diamonds[1:1000, 1:3]))
+              | box2.(case2.(us_rent_income[5], div = 100), col = 0)
+              | box2.(time2.(economics[1:50, ], div = 'year'))
+        Stats | stats.(iris, transpose = F, split = T)
+              | smry.(iris, .f = 'sd(x) / mean(x)')
+              | table.(diamonds[2:4])
+              | html.(starwars)
+....\n"
 
 if (interactive()) cat(tips)
 
