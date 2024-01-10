@@ -1973,12 +1973,17 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
 }
 
 
-## Clustering by probability ellipse == (2023-10-31) ========================
+## Clustering by probability ellipse == (2024-01-10) ========================
 ## [x,y,ID] preferable
-ellip. <- function(d, xlim = NA, ylim = NA, sel = NULL, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
+ellip. <- function(d, xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
   query_lib.(ellipse, robustbase)
   ## data nesting
-  d <- list2tibble.(d) %>% clean2.(na0 = F) %>% .[complete.cases(.), ] %>% split2.(nest = T)
+  d <- list2tibble.(d) %>%
+       clean2.(na0 = F) %>%
+       split2.(nest = T) %>%
+       mutate(data = map(data, ~ .[complete.cases(.), ])) %>%
+       dplyr::filter(map_dbl(.$data, nrow) > 0)
+
   if (map_lgl(d, ~ is.list(.)) %>% any() %>% `!`) stop('Use some data like [x,y,ID] ...\n\n', call. = F)
   
   ## data alignment
@@ -1991,7 +1996,6 @@ ellip. <- function(d, xlim = NA, ylim = NA, sel = NULL, name = NULL, col = 1:6, 
   d <- d %>% mutate(colpal = n_cyc.(col, 6, len_max = nrow(d)) %>% c('Blues', 'Greens', 'Oranges', 'Greys', 'Reds', 'Purples')[.])  # for brewer.pal()
   
   ## labels
-  if (!is.null(sel)) d <- d[sel, ]
   xylabs <- select(d, data) %>% {.[[1]][[1]]} %>% names()
   xlab <- xlab %||% xylabs[1]
   ylab <- ylab %||% xylabs[2]
@@ -1999,17 +2003,23 @@ ellip. <- function(d, xlim = NA, ylim = NA, sel = NULL, name = NULL, col = 1:6, 
   
   ## get ellipse info
   make_elli <- function(xy) {  # Minimum Covariance Determinant (MCD)
+    if (nrow(xy) < 4) return(tibble(x = NA_real_, y = NA_real_) %>% set_names(names(xy)))
     def.(c('x', 'y'), list(xy[[1]], xy[[2]]))
     Cnt <- try(robustbase::covMcd(xy, cor = T, alpha = 0.75)$center, silent = T)
     tmp <- try(robustbase::covMcd(xy, alpha = 0.75)$cov, silent = T)
     elli95 <- {if (nrow(xy) > 13 && !'try-error' %in% class(tmp)) tmp else cov(xy)} %>%
-              ellipse::ellipse(., centre = Cnt, level = 0.95, npoints = 200) %>% as_tibble()
+              ellipse::ellipse(., centre = Cnt, level = 0.95, npoints = 200) %>%
+              as_tibble()
     return(elli95)
   }
   d <- skipMess.(d %>% mutate(ellipse = map(data, ~ make_elli(.))))
   
   ## plot range
-  tmp <- d %>% select(ellipse) %>% unnest(everything())  #  ellipse > data range
+  if (el == TRUE) {
+    tmp <- d %>% select(ellipse) %>% unnest(everything())  #  ellipse > data range
+  } else {
+    tmp <- d %>% select(data) %>% unnest(everything())
+  }
   def.(c('x0', 'y0'), list(tmp[[1]], tmp[[2]]))
   if (between(min.(x0) /min.(y0), 0.9, 1.1) & between(max.(x0) /max.(y0), 0.9, 1.1) ) {  # When x & y differ slightly; keep the same scale
     def.(c('xlim2', 'ylim2'), list(pr.(c(x0, y0), xlim, 0.13), pr.(c(x0, y0), ylim, 0.13)))
@@ -2026,13 +2036,18 @@ ellip. <- function(d, xlim = NA, ylim = NA, sel = NULL, name = NULL, col = 1:6, 
   plot.window(xlim = xlim2, ylim = ylim2)
   for (i in seq(nrow(d))) {
     xy <- d %>% select(data) %>% .[[1]] %>% .[[i]]
-    color <- densCols(xy, colramp = colorRampPalette(c(RColorBrewer::brewer.pal(7, d$colpal[i]))))
+    if (el == TRUE) {
+      color <- densCols(xy, colramp = colorRampPalette(c(RColorBrewer::brewer.pal(7, d$colpal[i]))))
+    } else {
+      color <- str_sub(d$colpal, end = -2)[i]
+    }
     points(xy, pch = 19, lwd = 0.95, cex = 1.3, col = color)
   }
-  for (i in seq(nrow(d))) {
-    xy <- d %>% select(data) %>% .[[1]] %>% .[[i]]
-    el <- d %>% select(ellipse) %>% .[[1]] %>% .[[i]]
-    polygon.(el, col = str_sub(d$colpal[i], end = -2) %>% tolower() %>% col_tr.(., 0.3))
+  if (el == TRUE) {
+    for (i in seq(nrow(d))) {
+      els <- d %>% select(ellipse) %>% .[[1]] %>% .[[i]]
+      polygon.(els, col = str_sub(d$colpal[i], end = -2) %>% tolower() %>% col_tr.(., 0.25))
+    }
   }
   plot_frame.(xlim2=xlim2, ylim2=ylim2, tcl=-par('tcl'), padj=-0.2, bty='l', xlab=xlab, ylab=ylab, yline=yline)
   if (nrow(d) > 1) legen2.(name = name, legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0, cex = 0.85)
