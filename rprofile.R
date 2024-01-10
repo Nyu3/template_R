@@ -6,10 +6,10 @@
 # eval(parse(text = script))
 
 
-## Welcome message == (2020-10-24) ========================
+## Welcome message == (2024-01-10) ========================
 ## CAUTION: JupyterLab allows neither cat(), print() nor message() in the welcome message on .Rprofile
 ## https://stackoverflow.com/questions/37689694/real-time-printing-to-console-with-r-in-jupyter
-if (interactive()) cat('... Now loading ...\n|████████████████████████|')
+if (interactive()) cat('\n     ... Now loading ...\n|███████████████████████████|')
 
 
 ## Install vital packages if necessary == (2023-06-13) ========================
@@ -142,13 +142,13 @@ tips <- "
               | corp.(iris[3:4], el = T, li = F)
               | ellip.(iris)
               | sp.(iris, col = 3)
-    Histogram | hist.(iris[2:3], col = c('slateblue', 'coral2'), bin = 0.1, name = c('A', 'B'), overlay = T)
+     KDE plot | dens.(iris[4:5], cum = F)
+              | crp.(iris[2:3])
+    Histogram | hist.(iris[2:3], bin = 0.1, name = c('A', 'B'), overlay = T)
     Pie chart | pie.(iris[41:120,5], percent = T)
     Bar plots | barp.(iris, xyChange = T)
               | barp.(iris, cum = T, xyChange = T)
               | smz.(diamonds[1:2], this = 2, pareto = T)
-     KDE plot | dens.(iris[4:5], cum = F)
-              | crp.(iris[2:3])
      Box plot | box2.(iris, rot = 20, pareto = T, cut = T)
               | box2.(diamonds[1:1000, 1:3], mark = 'color')
               | box2.(id2y.(diamonds[1:1000, 1:3]))
