@@ -372,7 +372,7 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
 }  # END of pp.()
 
 
-## Get Sdorpion csv data == (2024-02-26) ========================
+## Turn Sdorpion csv data into tidy one == (2024-02-26) ========================
 pk. <- function(excel = T, ...) {
   tmp <- pp.()
   if (!any(str_detect(names(tmp), 'フェレ径'))) stop('Be sure to copy Sdorpion data...\n\n', call. = F)
@@ -473,8 +473,8 @@ pk. <- function(excel = T, ...) {
 
   ## summary
   if (excel == TRUE) {
-    write2.(list(ロット集計 = out_lot, 砥粒度集計 = out_type))
-    cat('\n    Shape data created on your Desktop...\n\n')
+    write2.(list(砥粒度集計 = out_type, ロット集計 = out_lot, 生データ = tmp2))
+    cat('\n    Shape factor data has been created on your Desktop...\n\n')
   }
   return(tmp2)  # raw data
 }
