@@ -372,7 +372,7 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
 }  # END of pp.()
 
 
-## Get Sdorpion csv data == (2023-12-04) ========================
+## Get Sdorpion csv data == (2024-02-26) ========================
 pk. <- function(excel = T, ...) {
   tmp <- pp.()
   if (!any(str_detect(names(tmp), 'フェレ径'))) stop('Be sure to copy Sdorpion data...\n\n', call. = F)
@@ -390,39 +390,104 @@ pk. <- function(excel = T, ...) {
     return(tmpx)
   }
 
-  out <- tmp[-1, ] %>%
-         mutate(タグ1 = chr_trim(タグ1, T), タグ2 = chr_trim(タグ2, T), タグ3 = chr_trim(タグ3, F), タグ4 = chr_trim(タグ4, F)) %>%
-         rename(砥粒種 := タグ1, 粒度 := タグ2, ID := タグ3, 倍率 := タグ4) %>%
-         hablar::retype() %>%
-         mutate(
-           面積 = 面積 / (倍率 / 100) ^ 2,
-           包絡面積 = 包絡面積 / (倍率 / 100) ^ 2,
-           矩形面積 = 矩形面積 / (倍率 / 100) ^ 2,
-           周囲長 = 周囲長 / (倍率 / 100),
-           水平フェレ径 = 水平フェレ径 / (倍率 / 100),
-           鉛直フェレ径 = 鉛直フェレ径 / (倍率 / 100),
-           等価円周 = 等価円周 / (倍率 / 100),
-           円相当径 = 円相当径 / (倍率 / 100),
-           包絡長 = 包絡長 / (倍率 / 100),
-           矩形長辺 = 矩形長辺 / (倍率 / 100),
-           矩形短辺 = 矩形短辺 / (倍率 / 100),
-           最大内接円 = 最大内接円 / (倍率 / 100),
-           最小外接円 = 最小外接円 / (倍率 / 100)
-         ) %>%
-         mutate(
-           針状比 = (圧縮度 / アスペクト比) / 2,
-           ギザ度 =  (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5,
-           モコ度 = pi * 最大内接円 / 周囲長
-         ) %>%
-         relocate(針状比, ギザ度, .before = 面積) %>%
-         relocate(モコ度, .before = 包絡度) %>%
-         rename(lot := ロットナンバー, date := アップロード日)
+  tmp2 <- tmp[-1, ] %>%
+          mutate(
+            タグ1 = chr_trim(タグ1, T),
+            タグ2 = chr_trim(タグ2, T),
+            タグ3 = chr_trim(タグ3, F),
+            タグ4 = chr_trim(タグ4, F),
+            砥粒度 = str_c(タグ1, ' (', タグ2, ')')
+          ) %>%
+          rename(砥粒種 := タグ1, 粒度 := タグ2, ID := タグ3, 倍率 := タグ4, lot := ロットナンバー, date := アップロード日) %>%
+          relocate(砥粒度, .after = 粒度) %>%
+          relocate(圧縮度, .after = アスペクト比) %>%
+          relocate(円磨度, .after = 円形度3) %>%
+          hablar::retype() %>%
+          mutate(
+            面積 = 面積 / (倍率 / 100) ^ 2,
+            包絡面積 = 包絡面積 / (倍率 / 100) ^ 2,
+            矩形面積 = 矩形面積 / (倍率 / 100) ^ 2,
+            周囲長 = 周囲長 / (倍率 / 100),
+            水平フェレ径 = 水平フェレ径 / (倍率 / 100),
+            鉛直フェレ径 = 鉛直フェレ径 / (倍率 / 100),
+            等価円周 = 等価円周 / (倍率 / 100),
+            円相当径 = 円相当径 / (倍率 / 100),
+            包絡長 = 包絡長 / (倍率 / 100),
+            矩形長辺 = 矩形長辺 / (倍率 / 100),
+            矩形短辺 = 矩形短辺 / (倍率 / 100),
+            最大内接円 = 最大内接円 / (倍率 / 100),
+            最小外接円 = 最小外接円 / (倍率 / 100)
+          ) %>%
+          mutate(
+            角度_mmr = 角度_最小 / 角度_最大,
+            角度_cvn = 角度_平均 / 角度_標準偏差 / 頂点数,
+            針状比 = (圧縮度 / アスペクト比) / 2,
+            ギザ度 =  (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5,
+            円径比 = 最大内接円 / 最小外接円,
+            内接モコ度 = (pi * 最大内接円) / 周囲長,  # aka., roughness
+            外接モコ度 = 周囲長 / (pi * 最小外接円),
+            内面モコ度 = (pi * 最大内接円 ^2 / 4) / 周囲長,
+            外面モコ度 = 周囲長 / (pi * 最小外接円 ^2 / 4),
+            ギア相当長 = 包絡度 / (pi * 最小外接円),
+            ギア突出量 = (最小外接円 - 最大内接円) / 2,
+            ギアピッチ = 包絡長 / 頂点数,
+            エッジトルク = ギア突出量 * ギアピッチ,
+            BVR1 = アスペクト比 * 角度_cvn * 内接モコ度,  # Boundary Visualized Roundness
+            BVR2 = アスペクト比 * 角度_cvn * 外接モコ度  # not an abbraviation of beaver
+          ) %>%
+          relocate(BVR1, BVR2, .before = 面積)
 
+  ## summarise function
+  transdata <- function(tmpx) {
+    ## skip the columns, 砥粒度, ID, lot
+    p5 <- summarise_all(tmpx, ~ percentile.(., 0.05)) %>% mutate(パーセンタイル点 = 'p5', .before = BVR1)
+    p50 <- summarise_all(tmpx, ~ percentile.(., 0.5)) %>% mutate(パーセンタイル点 = 'p50', .before = BVR1)
+    p95 <- summarise_all(tmpx, ~ percentile.(., 0.95)) %>% mutate(パーセンタイル点 = 'p95', .before = BVR1)
+    ## transpose the data
+    out <- bind_rows(p5, p50, p95)  # %>% t.()
+    return(out)
+  }
+
+  ## separate data into IDs & shape data
+  ## lot variation
+  tmp_lot <- tmp2 %>% select(-c(砥粒種, 粒度, 倍率, date, 座標)) %>% group_by(砥粒度, lot, ID)
+  ids <- tmp_lot %>% tally() %>% ungroup()
+  dats <- tmp_lot %>% group_map(~ transdata(.))
+  out_lot <- bind_rows(
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(パーセンタイル点 == 'p5')),
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(パーセンタイル点 == 'p50')),
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(パーセンタイル点 == 'p95'))
+             ) %>%
+             arrange(砥粒度, lot)
+
+  ## type variation
+  tmp_type <- tmp2 %>% select(-c(砥粒種, 粒度, 倍率, date, 座標, lot, ID)) %>% group_by(砥粒度)
+  id2 <- tmp_type %>% tally() %>% ungroup()
+  dat2 <- tmp_type %>% group_map(~ transdata(.))
+  out_type <- bind_rows(
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(パーセンタイル点 == 'p5')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(パーセンタイル点 == 'p50')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(パーセンタイル点 == 'p95'))
+              ) %>%
+              arrange(砥粒度)
+
+  ## summary
   if (excel == TRUE) {
-    write2.(out)
+    write2.(list(ロット集計 = out_lot, 砥粒度集計 = out_type))
     cat('\n    Shape data created on your Desktop...\n\n')
   }
+  return(tmp2)  # raw data
+}
+
+
+## Transpose data frame into tibble == (2024-02-22) ========================
+t. <- function(d, ...) {
+  tmp <- d %>% select(where(~!is.numeric(.)), everything()) %>% t()
+  col1 <- tibble(!!rlang::sym(rownames(tmp)[1]) := rownames(tmp)[-1])
+  col2 <- as_tibble(tmp[-1, ]) %>% set_names(tmp[1, ])
+  out <- bind_cols(col1, col2) %>% hablar::retype()
   return(out)
+# t.(diamonds[1:3, -3:-4])
 }
 
 
@@ -1586,7 +1651,7 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
 }
 
 
-## Kernel Density Estimation plot == (2023-06-13) ========================
+## Kernel Density Estimation plot == (2024-02-09) ========================
 dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = c(0, NA), name = NULL, col = NULL, lty = 1, lwd = NULL, grid = T,
                   xlab = NULL, ylab = NULL, legePos = NULL, cum = F, ...) {
   ## convert a vector to kde
@@ -1626,7 +1691,7 @@ dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = c(0, NA), na
   dL <- dLformer.(d, ord) %>% map(kde_xy) %>% {if (cum == TRUE) map(., cdf.) else .}
       # stop('Only available for [ID,y] or [y1,y2, ...]', call. = F)
 # if (length(xlim) == 2 && !is.na(xlim[1])) xlim <- NA  # the graph is hard to see if the x limit is set
-  plt.(dL, ord=ord, sel=sel, xlim=xlim, ylim=ylim, name=name, col=col, lty=lty, lwd=lwd, grid=grid, xlab=xlab, ylab=ylab, legePos=legePos)
+  plt.(dL, sel=sel, xlim=xlim, ylim=ylim, name=name, col=col, lty=lty, lwd=lwd, grid=grid, xlab=xlab, ylab=ylab, legePos=legePos)
 
   ## p-th percentile
   out <- map(dL, ~ cdf.(., p = c(0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9) /100)) %>%  # percentile
