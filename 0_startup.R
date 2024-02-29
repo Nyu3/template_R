@@ -372,7 +372,7 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
 }  # END of pp.()
 
 
-## Turn Sdorpion csv data into tidy one == (2024-02-26) ========================
+## Turn Sdorpion csv data into tidy one == (2024-02-29) ========================
 pk. <- function(excel = T, ...) {
   tmp <- pp.()
   if (!any(str_detect(names(tmp), 'フェレ径'))) stop('Be sure to copy Sdorpion data...\n\n', call. = F)
@@ -400,8 +400,6 @@ pk. <- function(excel = T, ...) {
           ) %>%
           rename(砥粒種 := タグ1, 粒度 := タグ2, ID := タグ3, 倍率 := タグ4, lot := ロットナンバー, date := アップロード日) %>%
           relocate(砥粒度, .after = 粒度) %>%
-          relocate(圧縮度, .after = アスペクト比) %>%
-          relocate(円磨度, .after = 円形度3) %>%
           hablar::retype() %>%
           mutate(
             面積 = 面積 / (倍率 / 100) ^ 2,
@@ -420,29 +418,34 @@ pk. <- function(excel = T, ...) {
           ) %>%
           mutate(
             角度_mmr = 角度_最小 / 角度_最大,
-            角度_cvn = 角度_平均 / 角度_標準偏差 / 頂点数,
-            針状比 = (圧縮度 / アスペクト比) / 2,
-            ギザ度 =  (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5,
-            円径比 = 最大内接円 / 最小外接円,
+            ## 1 - exp(-((角度_最大 + 角度_最大) / 2 / 角度_標準偏差) / 頂点数)  # (角度_平均 / 角度_標準偏差) / 頂点数
+            角度_変動係数 = 1 / (1 +exp(-3 *((角度_最小 +角度_最大) /2 /角度_標準偏差) /頂点数)) ^3,
+            円径比 = 最大内接円 / 最小外接円,  # sphericity
+            針状度 = 1 -exp(-3 *abs(1 -圧縮度) *(1 -円径比) /アスペクト比),  # (圧縮度 / アスペクト比) / 2,  # acicularity
+            ギザ度 =  (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5,  # edge roughness
             内接モコ度 = (pi * 最大内接円) / 周囲長,  # aka., roughness
             外接モコ度 = 周囲長 / (pi * 最小外接円),
             内面モコ度 = (pi * 最大内接円 ^2 / 4) / 周囲長,
             外面モコ度 = 周囲長 / (pi * 最小外接円 ^2 / 4),
-            ギア相当長 = 包絡度 / (pi * 最小外接円),
-            ギア突出量 = (最小外接円 - 最大内接円) / 2,
-            ギアピッチ = 包絡長 / 頂点数,
-            エッジトルク = ギア突出量 * ギアピッチ,
-            BVR1 = アスペクト比 * 角度_cvn * 内接モコ度,  # Boundary Visualized Roundness
-            BVR2 = アスペクト比 * 角度_cvn * 外接モコ度  # not an abbraviation of beaver
+            BVR = (1 - 針状度) * 角度_変動係数 * 外接モコ度,  # Boundary Varied Roundness; not an abbraviation of beaver
+            ギアmodule = pi *(最小外接円 + 最大内接円) /2 /頂点数,  # 円相当径 /頂点数  包絡長 /頂点数
+            ギア突出量 = (最小外接円 - 最大内接円) /2,
+            ギア元幅 = ギア突出量 *(1 + 2 /tan(1 -角度_平均 /180) *pi),
+            ## ルイスの式: 歯先に働く力 = 歯型係数*歯元応力*基準円*歯幅 ~ k*基準円*歯幅 = k*(π*モジュール)*歯幅 ~ モジュール*歯幅
+            edgeMomentum = log(ギアmodule * ギア元幅)  # モジュール*歯幅
           ) %>%
-          relocate(BVR1, BVR2, .before = 面積)
+          select(-c(contains('ギア'), 座標)) %>%
+          relocate(圧縮度, 円径比, 針状度, .after = アスペクト比) %>%
+          relocate(円磨度, .after = 円形度3) %>%
+          relocate(BVR, edgeMomentum, .after = date)
+
 
   ## summarise function
   transdata <- function(tmpx) {
     ## skip the columns, 砥粒度, ID, lot
-    p5 <- summarise_all(tmpx, ~ percentile.(., 0.05)) %>% mutate(パーセンタイル点 = 'p5', .before = BVR1)
-    p50 <- summarise_all(tmpx, ~ percentile.(., 0.5)) %>% mutate(パーセンタイル点 = 'p50', .before = BVR1)
-    p95 <- summarise_all(tmpx, ~ percentile.(., 0.95)) %>% mutate(パーセンタイル点 = 'p95', .before = BVR1)
+    p5 <- summarise_all(tmpx, ~ percentile.(., 0.05)) %>% mutate(パーセンタイル点 = 'p5', .before = BVR)
+    p50 <- summarise_all(tmpx, ~ percentile.(., 0.5)) %>% mutate(パーセンタイル点 = 'p50', .before = BVR)
+    p95 <- summarise_all(tmpx, ~ percentile.(., 0.95)) %>% mutate(パーセンタイル点 = 'p95', .before = BVR)
     ## transpose the data
     out <- bind_rows(p5, p50, p95)  # %>% t.()
     return(out)
@@ -450,7 +453,7 @@ pk. <- function(excel = T, ...) {
 
   ## separate data into IDs & shape data
   ## lot variation
-  tmp_lot <- tmp2 %>% select(-c(砥粒種, 粒度, 倍率, date, 座標)) %>% group_by(砥粒度, lot, ID)
+  tmp_lot <- tmp2 %>% select(-c(砥粒種, 粒度, 倍率, date)) %>% group_by(砥粒度, lot, ID)
   ids <- tmp_lot %>% tally() %>% ungroup()
   dats <- tmp_lot %>% group_map(~ transdata(.))
   out_lot <- bind_rows(
@@ -461,7 +464,7 @@ pk. <- function(excel = T, ...) {
              arrange(砥粒度, lot)
 
   ## type variation
-  tmp_type <- tmp2 %>% select(-c(砥粒種, 粒度, 倍率, date, 座標, lot, ID)) %>% group_by(砥粒度)
+  tmp_type <- tmp2 %>% select(-c(砥粒種, 粒度, 倍率, date, lot, ID)) %>% group_by(砥粒度)
   id2 <- tmp_type %>% tally() %>% ungroup()
   dat2 <- tmp_type %>% group_map(~ transdata(.))
   out_type <- bind_rows(
@@ -471,9 +474,20 @@ pk. <- function(excel = T, ...) {
               ) %>%
               arrange(砥粒度)
 
+  ## species variation
+  tmp_spec <- tmp2 %>% select(-c(砥粒度, 粒度, 倍率, date, lot, ID)) %>% group_by(砥粒種)
+  id3 <- tmp_spec %>% tally() %>% ungroup()
+  dat3 <- tmp_spec %>% group_map(~ transdata(.))
+  out_spec <- bind_rows(
+                bind_cols(id3, bind_rows(dat3) %>% dplyr::filter(パーセンタイル点 == 'p5')),
+                bind_cols(id3, bind_rows(dat3) %>% dplyr::filter(パーセンタイル点 == 'p50')),
+                bind_cols(id3, bind_rows(dat3) %>% dplyr::filter(パーセンタイル点 == 'p95'))
+              ) %>%
+              arrange(砥粒種)
+
   ## summary
   if (excel == TRUE) {
-    write2.(list(砥粒度集計 = out_type, ロット集計 = out_lot, 生データ = tmp2))
+    write2.(list(生データ = tmp2, ロット集計 = out_lot, 砥粒度de集計 = out_type, 砥粒種de集計 = out_spec))
     cat('\n    Shape factor data has been created on your Desktop...\n\n')
   }
   return(tmp2)  # raw data
@@ -2038,7 +2052,7 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
 }
 
 
-## Clustering by probability ellipse == (2024-01-10) ========================
+## Clustering by probability ellipse == (2024-02-27) ========================
 ## [x,y,ID] preferable
 ellip. <- function(d, xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
   query_lib.(ellipse, robustbase)
@@ -2102,7 +2116,11 @@ ellip. <- function(d, xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab
   for (i in seq(nrow(d))) {
     xy <- d %>% select(data) %>% .[[1]] %>% .[[i]]
     if (el == TRUE) {
-      color <- densCols(xy, colramp = colorRampPalette(c(RColorBrewer::brewer.pal(7, d$colpal[i]))))
+      color <- if (nrow(xy) == 1) {
+                 RColorBrewer::brewer.pal(7, d$colpal[i])[1]
+               } else {
+                 densCols(xy, colramp = colorRampPalette(c(RColorBrewer::brewer.pal(7, d$colpal[i]))))
+               }
     } else {
       color <- str_sub(d$colpal, end = -2)[i]
     }
