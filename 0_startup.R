@@ -372,7 +372,7 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
 }  # END of pp.()
 
 
-## Turn Sdorpion csv data into tidy one == (2024-02-29) ========================
+## Turn Sdorpion csv data into tidy one == (2024-03-08) ========================
 pk. <- function(excel = T, ...) {
   tmp <- pp.()
   if (!any(str_detect(names(tmp), 'フェレ径'))) stop('Be sure to copy Sdorpion data...\n\n', call. = F)
@@ -381,10 +381,12 @@ pk. <- function(excel = T, ...) {
   chr_trim <- function(x, get_chr = T) {
     tmpx <- gsub("\\[\'|\\'\\]", '', x) %>%
             str_split("\\' \\'") %>% {
-              if (get_chr == TRUE) {
-                map_chr(., ~ .x %>% {.[str_detect(., '-') | str_detect(., '[:alpha:]')][1]})  # chr: type, size
-              } else {
-                map_chr(., ~ .x %>% {.[!str_detect(., '-') & !str_detect(., '[:alpha:]')][1]})  # num: ID, magnification
+              if (get_chr == TRUE) {  # chr: type, size; eg) 6-12, 140/170
+                map_chr(., ~ .x %>% {
+                  .[str_detect(., '-') | str_detect(., '/') | str_detect(., '\\#') | str_detect(., '[:alpha:]')][1]
+                })
+              } else {  # num: ID, magnification
+                map_chr(., ~ .x %>% {.[!str_detect(., '-') & !str_detect(., '[:alpha:]')][1]})
               }
             }
     return(tmpx)
@@ -427,27 +429,35 @@ pk. <- function(excel = T, ...) {
             外接モコ度 = 周囲長 / (pi * 最小外接円),
             内面モコ度 = (pi * 最大内接円 ^2 / 4) / 周囲長,
             外面モコ度 = 周囲長 / (pi * 最小外接円 ^2 / 4),
-            BVR = (1 - 針状度) * 角度_変動係数 * 外接モコ度,  # Boundary Varied Roundness; not an abbraviation of beaver
-            ギアmodule = pi *(最小外接円 + 最大内接円) /2 /頂点数,  # 円相当径 /頂点数  包絡長 /頂点数
-            ギア突出量 = (最小外接円 - 最大内接円) /2,
-            ギア元幅 = ギア突出量 *(1 + 2 /tan(1 -角度_平均 /180) *pi),
+            ## Vertex Boundary Angularity; not an abbraviation of beaver
+            VBA = (1 - 針状度) * 角度_変動係数 * 外接モコ度,
+            ギアmodule = pi *(最小外接円 + 最大内接円) /2 /頂点数,  # pi*円相当径/頂点数  pi*包絡長/頂点数
+            ギア突出量 = (最小外接円 - 最大内接円) /2,  # (周囲長 - 包絡長) /頂点数  円相当径
+            ギア元幅 = ギア突出量 *(1 + 2 /tan((1 -(角度_最小 +角度_最大) /2 /180) *pi)),  # 角度_平均
             ## ルイスの式: 歯先に働く力 = 歯型係数*歯元応力*基準円*歯幅 ~ k*基準円*歯幅 = k*(π*モジュール)*歯幅 ~ モジュール*歯幅
-            edgeMomentum = log(ギアmodule * ギア元幅)  # モジュール*歯幅
+            MVP = log10(ギアmodule * ギア元幅)  # モジュール*歯幅; Momentum of vertex points
           ) %>%
-          select(-c(contains('ギア'), 座標)) %>%
+         # select(-c(contains('ギア'), 座標)) %>%
           relocate(圧縮度, 円径比, 針状度, .after = アスペクト比) %>%
           relocate(円磨度, .after = 円形度3) %>%
-          relocate(BVR, edgeMomentum, .after = date)
+          relocate(VBA, MVP, .after = date)
 
 
   ## summarise function
   transdata <- function(tmpx) {
     ## skip the columns, 砥粒度, ID, lot
-    p5 <- summarise_all(tmpx, ~ percentile.(., 0.05)) %>% mutate(パーセンタイル点 = 'p5', .before = BVR)
-    p50 <- summarise_all(tmpx, ~ percentile.(., 0.5)) %>% mutate(パーセンタイル点 = 'p50', .before = BVR)
-    p95 <- summarise_all(tmpx, ~ percentile.(., 0.95)) %>% mutate(パーセンタイル点 = 'p95', .before = BVR)
+    m1 <- summarise_all(tmpx, ~ mean.(.)) %>% mutate(stats = 'mean', .before = VBA)
+    m2 <- summarise_all(tmpx, ~ mean.(., trim = 0.2)) %>% mutate(stats = 'trim_mean', .before = VBA)
+    m3 <- summarise_all(tmpx, ~ prop_mean.(.)) %>% mutate(stats = 'proportional_mean', .before = VBA)
+    m4 <- summarise_all(tmpx, ~ geo_mean.(.)) %>% mutate(stats = 'geometric_mean', .before = VBA)
+    m5 <- summarise_all(tmpx, ~ hl_mean.(.)) %>% mutate(stats = 'Hodeges-Lehmann_estimator', .before = VBA)
+    m6 <- summarise_all(tmpx, ~ median.(.)) %>% mutate(stats = 'median', .before = VBA)
+  # m7 <- summarise_all(tmpx, ~ har_mean.(.)) %>% mutate(stats = 'harmonic_mean', .before = VBA)
+  # p5 <- summarise_all(tmpx, ~ percentile.(., 0.05)) %>% mutate(stats = 'p5', .before = VBA)
+  # p50 <- summarise_all(tmpx, ~ percentile.(., 0.5)) %>% mutate(stats = 'p50', .before = VBA)
+  # p95 <- summarise_all(tmpx, ~ percentile.(., 0.95)) %>% mutate(stats = 'p95', .before = VBA)
     ## transpose the data
-    out <- bind_rows(p5, p50, p95)  # %>% t.()
+    out <- bind_rows(m1, m2, m3, m4, m5, m6)  # %>% t.()
     return(out)
   }
 
@@ -457,10 +467,16 @@ pk. <- function(excel = T, ...) {
   ids <- tmp_lot %>% tally() %>% ungroup()
   dats <- tmp_lot %>% group_map(~ transdata(.))
   out_lot <- bind_rows(
-               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(パーセンタイル点 == 'p5')),
-               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(パーセンタイル点 == 'p50')),
-               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(パーセンタイル点 == 'p95'))
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'mean')),
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'trim_mean')),
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'proportional_mean')),
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'geometric_mean')),
+             # bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'harmonic_mean')),
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'median'))
              ) %>%
+             mutate(砥粒種 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
+             mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒種) %>%
              arrange(砥粒度, lot)
 
   ## type variation
@@ -468,26 +484,21 @@ pk. <- function(excel = T, ...) {
   id2 <- tmp_type %>% tally() %>% ungroup()
   dat2 <- tmp_type %>% group_map(~ transdata(.))
   out_type <- bind_rows(
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(パーセンタイル点 == 'p5')),
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(パーセンタイル点 == 'p50')),
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(パーセンタイル点 == 'p95'))
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'mean')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'trim_mean')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'proportional_mean')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'geometric_mean')),
+              # bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'harmonic_mean')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median'))
               ) %>%
+              mutate(砥粒種 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
+              mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒種) %>%
               arrange(砥粒度)
-
-  ## species variation
-  tmp_spec <- tmp2 %>% select(-c(砥粒度, 粒度, 倍率, date, lot, ID)) %>% group_by(砥粒種)
-  id3 <- tmp_spec %>% tally() %>% ungroup()
-  dat3 <- tmp_spec %>% group_map(~ transdata(.))
-  out_spec <- bind_rows(
-                bind_cols(id3, bind_rows(dat3) %>% dplyr::filter(パーセンタイル点 == 'p5')),
-                bind_cols(id3, bind_rows(dat3) %>% dplyr::filter(パーセンタイル点 == 'p50')),
-                bind_cols(id3, bind_rows(dat3) %>% dplyr::filter(パーセンタイル点 == 'p95'))
-              ) %>%
-              arrange(砥粒種)
 
   ## summary
   if (excel == TRUE) {
-    write2.(list(生データ = tmp2, ロット集計 = out_lot, 砥粒度de集計 = out_type, 砥粒種de集計 = out_spec))
+    write2.(list(生データ = tmp2, ロット集計 = out_lot, 砥粒度de集計 = out_type))
     cat('\n    Shape factor data has been created on your Desktop...\n\n')
   }
   return(tmp2)  # raw data
@@ -2052,15 +2063,15 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
 }
 
 
-## Clustering by probability ellipse == (2024-02-27) ========================
+## Clustering by probability ellipse == (2024-03-07) ========================
 ## [x,y,ID] preferable
-ellip. <- function(d, xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
+ellip. <- function(d, trim = c(0, 1), xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
   query_lib.(ellipse, robustbase)
   ## data nesting
   d <- list2tibble.(d) %>%
        clean2.(na0 = F) %>%
        split2.(nest = T) %>%
-       mutate(data = map(data, ~ .[complete.cases(.), ])) %>%
+       mutate(data = map(data, ~ trim.(., cuts = trim))) %>%
        dplyr::filter(map_dbl(.$data, nrow) > 0)
 
   if (map_lgl(d, ~ is.list(.)) %>% any() %>% `!`) stop('Use some data like [x,y,ID] ...\n\n', call. = F)
@@ -2072,7 +2083,8 @@ ellip. <- function(d, xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab
   
   ## color
   if (is.character(col)) stop('Don\'t use color name like \'blue\'.  Use numbers 1 to 6\n\n', call. = F)
-  d <- d %>% mutate(colpal = n_cyc.(col, 6, len_max = nrow(d)) %>% c('Blues', 'Greens', 'Oranges', 'Greys', 'Reds', 'Purples')[.])  # for brewer.pal()
+  d <- d %>% mutate(colpal = n_cyc.(col, 6, len_max = nrow(d)) %>%
+       c('Blues', 'Greys', 'Oranges', 'Reds', 'Purples', 'Greens')[.])  # for brewer.pal()
   
   ## labels
   xylabs <- select(d, data) %>% {.[[1]][[1]]} %>% names()
@@ -2122,18 +2134,20 @@ ellip. <- function(d, xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab
                  densCols(xy, colramp = colorRampPalette(c(RColorBrewer::brewer.pal(7, d$colpal[i]))))
                }
     } else {
-      color <- str_sub(d$colpal, end = -2)[i]
+      color <- str_sub(d$colpal, end = -2)[i] %>% col_tr.(., 0.5)
     }
     points(xy, pch = 19, lwd = 0.95, cex = 1.3, col = color)
   }
   if (el == TRUE) {
     for (i in seq(nrow(d))) {
       els <- d %>% select(ellipse) %>% .[[1]] %>% .[[i]]
-      polygon.(els, col = str_sub(d$colpal[i], end = -2) %>% tolower() %>% col_tr.(., 0.25))
+      polygon.(els, col = str_sub(d$colpal[i], end = -2) %>% tolower() %>% col_tr.(., 0.35))
     }
   }
   plot_frame.(xlim2=xlim2, ylim2=ylim2, tcl=-par('tcl'), padj=-0.2, bty='l', xlab=xlab, ylab=ylab, yline=yline)
-  if (nrow(d) > 1) legen2.(name = name, legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0, cex = 0.85)
+  if (nrow(d) > 1) {
+    legen2.(name = name, legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0, cex = 0.85)
+  }
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
   gp.()  # Get back to the default fear of using mar
 # ellip.(iris)
@@ -3238,6 +3252,21 @@ omit2. <- function(x) {
 # c(NA, NaN, Inf, -Inf, 123) %>% omit2.()
 }
 
+## Omit outliers == (2024-03-06) ========================
+trim. <- function(d, cuts = c(0.25, 0.75)) {
+  out <- map_df(d, function(x) {
+                     if (!is.numeric(x)) return(x)
+                     case_when(x < percentile.(x, cuts[1]) ~ NA_real_,
+                               x > percentile.(x, cuts[2]) ~ NA_real_,
+                               TRUE ~ x
+                     )
+                   }
+         ) %>%
+         .[complete.cases(.), ]
+  return(out)
+# trim.(iris[-1:-2]) %>% ellip.()
+}
+
 ## Multiple definition == (2019-01-10) ========================
 def. <- function(defnames, values) for (i in seq_along(defnames)) assign(defnames[i], values[[i]], envir = parent.frame())
 # def.(c('cat', 'run'), list(35, 1:23))
@@ -3374,6 +3403,29 @@ har_mean. <- function(x) {
   } else {
     NA_real_
   }
+}
+
+## Hodges-Lehmann estimator == (2024-03-08) ==
+hl_mean. <- function(x) {
+  query_lib.(rt.test)
+  hl_mean0. <- function(x) {
+    if (is.atomic(x) && is.numeric(x)) {
+      if (any(x[!is.na(x)] == 0)) {
+        NA_real_
+      } else {
+        omit2.(x) %>% rt.test::HL.estimate(., IncludeEqual = T)
+      }
+    } else {
+      NA_real_
+    }
+  }
+  if (is.atomic(x)) {
+    hl_mean0.(x)
+  } else if (is.list(x)) {
+    list2tibble.(x) %>% map_df(~ if (is.numeric(.)) hl_mean0.(.) else NA_real_)
+  } else {
+    NA_real_
+  }  
 }
 
 median. <- function(x) {
