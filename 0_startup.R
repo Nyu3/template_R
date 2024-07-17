@@ -1917,7 +1917,7 @@ crp. <- function(d, ord = F, sel = NULL, xlim = NA, ylim = c(-0.01, 1.05), name 
 }
 
 
-## Histograms plot == (2022-11-09) ========================
+## Histograms plot == (2024-07-17) ========================
 hist. <- function(d, ord = F, bin = 'st', freq = T, xlim = NA, ylim = c(0, NA), col = NULL,
                   xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, name = NULL, plot = T, overlay = T, ...) {
   ## Cut data range by xlim
@@ -1965,6 +1965,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlim = NA, ylim = c(0, NA), 
   }
   ylim2 <- pr.(ifelse(is.na(ylim[2]), Ymax, ylim[2]), ylim, 0.08)
   ylab <- if (freq == TRUE) ylab %||% 'Frequency' else if (!freq) ylab %||% 'Density'
+
   par(xaxs = 'i', yaxs = 'i', mgp = c(0, 0.4, 0), ann = F)
   if (overlay == FALSE) {
     for (i in seq_along(dL)) {
@@ -1980,7 +1981,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlim = NA, ylim = c(0, NA), 
 
     if ((length(dL) != 1 || !is.null(name)) && !0 %in% name) {  # No legend is needed for one line at least. Or name = 0 returns no legend
       name <- name %||% names(dL) %||% str_c('#', seq_along(dL))  # Auto assignment
-      legen2.(name, legePos, col)
+      legen2.(name, legePos, col_tr.(color[i], 0.75))
     }
   }
   gp.()
