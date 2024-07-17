@@ -166,9 +166,7 @@ tips <- paste0("
       └─| smry.(iris, .f = 'sd(x) / mean(x)')
       └─| table.(diamonds[2:4])
       └─| html.(starwars)
-",
-# paste0(rep('\u2583', 70), collapse = ''), '\n\n'
-  '▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃\n\n'
+", paste0(rep('\u2583', 70), collapse = ''), '\n\n'
 )
 
 if (interactive()) cat(tips)

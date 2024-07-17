@@ -1981,7 +1981,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlim = NA, ylim = c(0, NA), 
 
     if ((length(dL) != 1 || !is.null(name)) && !0 %in% name) {  # No legend is needed for one line at least. Or name = 0 returns no legend
       name <- name %||% names(dL) %||% str_c('#', seq_along(dL))  # Auto assignment
-      legen2.(name, legePos, col_tr.(color[i], 0.75))
+      legen2.(name, legePos, col_tr.(color, 0.75))
     }
   }
   gp.()
