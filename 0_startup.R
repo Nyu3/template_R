@@ -18,7 +18,7 @@ gp. <- function(...) {
 }
 
 
-## Auto install == (2022-11-10) ========================
+## Auto install == (2024-07-05) ========================
 query_lib. <- function(package_name, ...) {
   tmp <- deparse(substitute(package_name)) %>% gsub('\"', '', .)  # variable or string
   tmp <- eval(substitute(alist(...))) %>%
@@ -28,17 +28,27 @@ query_lib. <- function(package_name, ...) {
   if (length(new_list) != 0) {
     purrr::walk(new_list, function(x) {
       cat('\n    trying to install', x, '...\n\n')
-      install.packages(x, dependencies = T)
+      install.packages(x, dependencies = T, repos = 'https://ftp.yz.yamagata-u.ac.jp/pub/cran/')
     })
   }
 # query_lib.(hablar, vroom, xyz)  # mix of variable & not applicable library name
 # query_lib.(formattable, 'scico')  # mix of variable & string
 }
 
+## Return strings even you write it as an object == (2024-07-12) ========================
+lazy_name. <- function(x, ...) {
+  if (is.null(x)) return(NULL)
+  if (is.null(substitute(x))) return(NULL)
+  if (!exists(substitute(x))) x <- as.character(substitute(x))
+  if (!is.character(x) && !is.factor(x)) stop('Not an available character...\n\n', call. = F)
+  return(x)
+# lazy_name.(nya)
+}
 
-## Rename duplicated names == (2023-11-15) ========================
+
+## Rename duplicated names == (2024-05-22) ========================
 make.unique2 <- function(x, sep = '') {
-  x2 <- case_when(is.na(x) ~ 'NA', TRUE ~ x)
+  x2 <- dplyr::case_when(is.na(x) ~ 'NA', TRUE ~ x)
   tmp <- ave(x2, x2, FUN = function(y) if (length(y) > 1) str_c(y, 1:length(y), sep = sep) else y)
   return(tmp)
 }
@@ -69,15 +79,19 @@ setwd. <- function(desktop = F, ...) {  # Needed to copy a file path on the cons
 ## Lightly vroom() for csv == (2023-03-03) ========================
 vroom. <- function(file = NULL, skip = 0, coln = T, ...) {
   query_lib.(hablar, vroom)
+  file <- lazy_name.(file)
+
   if (!is.null(file)) {
-    filen <- if (length(file) == 1) file else str_c(file, collapse = '|')
-    File <<- list.files(pattern = 'csv|CSV') %>% str_subset(., pattern = fixed(filen))
+    filen <- if (length(file) == 1) file else str_c(file, collapse = '???')
+    File <- list.files(pattern = 'csv|CSV') %>% str_subset(., pattern = fixed(filen))
   } else {
-    File <<- dir(pattern = '\\.csv|\\.CSV') %>% str_subset(., pattern = fixed('$'), negate = T) %>% choice.(., note = 'Target File(s)')
+    File <- dir(pattern = '\\.csv|\\.CSV') %>%
+            str_subset(., pattern = fixed('$'), negate = T) %>% 
+            choice.(., note = 'Target File(s)')
   }
   enc <- map_chr(File, ~ try(readr::guess_encoding(.), silent = T) %>%  # for a tibble: 0 x 0
                          {if ('try-error' %in% class(.)) 'ASCII' else .[[1,1]]} %>%
-                         {case_when(str_detect(., 'ASCII|Shift_JIS|windows') ~ 'cp932',
+                         {dplyr::case_when(str_detect(., 'ASCII|Shift_JIS|windows') ~ 'cp932',
                                     str_detect(., 'UTF-8') ~ 'utf8',
                                     TRUE ~ 'unknown')
                          }
@@ -246,7 +260,7 @@ is_time. <- function(x, ...) if (is.list(x)) map_lgl(x, ~ is.POSIXct(.) | is.Dat
 is_quasi_time. <- function(x, ...) {
   if (all(is.na(x)) || !is.character(x)) return(FALSE)
   x <- x[!is.na(x)]
-  tz_TF <- {str_count(x, ':') == 2 & str_detect(x, 'UTC|JST')} %>% any()
+  tz_TF <- {stringr::str_count(x, ':') == 2 & str_detect(x, 'UTC|JST')} %>% any()
   digit_TF <- {str_detect(x, '[:digit:]') & !str_detect(x, '[:upper:]|[:lower:]') & !is.na(x)} %>% all()  # No alphabet
   chr1_TF <- {str_count(x, '/') == 2 | str_count(x, '-') == 2 & !str_count (x, '/|-') > 2 & !is.na(x)} %>% any()
   chr2_TF <- if (all(str_count(x, '-') != 2 | str_count(x, ' ') == 1)) TRUE else map_lgl(str_split(x, '-'), ~ .[1] %>% {str_length(.) == 4}) %>% any()
@@ -264,7 +278,7 @@ is_quasi_period. <- function(x, ...) {
 }  # c('0:00', '24:00', '123:45', NA, '1:30:00')
 
 
-## Time style conversion in the tibble level == (2023-08-16) ========================
+## Time style conversion in the tibble level == (2024-04-25) ========================
 dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by getData.() & pp.()
   query_lib.(lubridate)
   if (map_lgl(d, ~ is_quasi_time.(.) || is_quasi_period.(.)) %>% any() %>% `!`) return(d)
@@ -272,14 +286,16 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
   ## Time style conversion in the vector level
   chr2time <- function(x) {
     colons <- str_count(x, ':') %>% max(na.rm = T)  # shit data like 2023/8/11 01:21  2023/8/11 01:22:00, so use median not max
+    colon2 <- str_count(x, '::') %>% max(na.rm = T)  # a design like a::b be removed
+    if (colon2 > 0) return(x)
     if (is_quasi_time.(x)) {
       x <- gsub('  ', ' ', x)  # cannot convert '2023/8/13  01:21'
       if (colons == 0) {
         timeVec <- parse_date_time2(x, orders = 'Ymd', tz = 'Asia/Tokyo')
       }else if (colons == 1) {
-        timeVec <- case_when(str_count(x, ':') == 0 ~ str_c(x, ':00'), TRUE ~ x) %>% parse_date_time2(orders = 'YmdHM', tz = 'Asia/Tokyo')
+        timeVec <- dplyr::case_when(str_count(x, ':') == 0 ~ str_c(x, ':00'), TRUE ~ x) %>% parse_date_time2(orders = 'YmdHM', tz = 'Asia/Tokyo')
       } else {
-        timeVec <- case_when(str_count(x, ':') == 0 ~ str_c(x, ':00:00'), str_count(x, ':') == 1 ~ str_c(x, ':00'), TRUE ~ x) %>%
+        timeVec <- dplyr::case_when(str_count(x, ':') == 0 ~ str_c(x, ':00:00'), str_count(x, ':') == 1 ~ str_c(x, ':00'), TRUE ~ x) %>%
                    parse_date_time2(orders = 'YmdHMOS', tz = 'Asia/Tokyo')  # 'HMOS' reacts millisec as well as sec
       }
       return(timeVec)
@@ -318,7 +334,7 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 }
 
 
-## Powerful copy & paste == (2023-08-16) ========================
+## Powerful copy & paste == (2024-05-22) ========================
 pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
   query_lib.(hablar, stringdist)
   clip <- suppressWarnings(readr::clipboard()) %>%
@@ -361,7 +377,7 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
   d <- d %>%
        set_names(names(d) %>%
                  gsub('NA', 'X', .) %>%
-                 if_else(nchar(.) == 0, 'X', .) %>%
+                 dplyr::if_else(nchar(.) == 0, 'X', .) %>%
                  make.unique2()
        ) %>%
        dt2time.(timeSort = F) %>%
@@ -372,7 +388,7 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
 }  # END of pp.()
 
 
-## Turn Sdorpion csv data into tidy one == (2024-03-08) ========================
+## Turn Sdorpion csv data into tidy one == (2024-07-17) ========================
 pk. <- function(excel = T, ...) {
   tmp <- pp.()
   if (!any(str_detect(names(tmp), 'フェレ径'))) stop('Be sure to copy Sdorpion data...\n\n', call. = F)
@@ -398,32 +414,47 @@ pk. <- function(excel = T, ...) {
             タグ2 = chr_trim(タグ2, T),
             タグ3 = chr_trim(タグ3, F),
             タグ4 = chr_trim(タグ4, F),
-            砥粒度 = str_c(タグ1, ' (', タグ2, ')')
           ) %>%
-          rename(砥粒種 := タグ1, 粒度 := タグ2, ID := タグ3, 倍率 := タグ4, lot := ロットナンバー, date := アップロード日) %>%
+          set_names(unlist(tmp[1, ])) %>%
+          mutate(砥粒度 = str_c(tag1, ' (', tag2, ')')) %>%
+          rename(砥粒種 := tag1, 粒度 := tag2, ID := tag3, 倍率 := tag4, lot := lot_no) %>%
           relocate(砥粒度, .after = 粒度) %>%
           hablar::retype() %>%
           mutate(
-            面積 = 面積 / (倍率 / 100) ^ 2,
-            包絡面積 = 包絡面積 / (倍率 / 100) ^ 2,
-            矩形面積 = 矩形面積 / (倍率 / 100) ^ 2,
-            周囲長 = 周囲長 / (倍率 / 100),
-            水平フェレ径 = 水平フェレ径 / (倍率 / 100),
-            鉛直フェレ径 = 鉛直フェレ径 / (倍率 / 100),
-            等価円周 = 等価円周 / (倍率 / 100),
-            円相当径 = 円相当径 / (倍率 / 100),
-            包絡長 = 包絡長 / (倍率 / 100),
-            矩形長辺 = 矩形長辺 / (倍率 / 100),
-            矩形短辺 = 矩形短辺 / (倍率 / 100),
-            最大内接円 = 最大内接円 / (倍率 / 100),
-            最小外接円 = 最小外接円 / (倍率 / 100)
-          ) %>%
-          mutate(
+            面積 = area / (倍率 / 100) ^ 2,
+            包絡面積 = convex_area / (倍率 / 100) ^ 2,
+            矩形面積 = boundingbox_area / (倍率 / 100) ^ 2,
+            周囲長 = perimeter / (倍率 / 100),
+            包絡長 = convex_perimeter / (倍率 / 100),
+            矩形短辺 = l_minor / (倍率 / 100),
+            矩形長辺 = l_major / (倍率 / 100),
+            平均軸径 = (矩形短辺 + 矩形長辺) / 2,
+            水平フェレ径 = feret_diameter_w / (倍率 / 100),
+            鉛直フェレ径 = feret_diameter_h / (倍率 / 100),
+            等価円周 = circle_equivalent_perimeter / (倍率 / 100),
+            円相当径 = circle_equivalent_diameter / (倍率 / 100),
+            最小外接円 = diameter_out / (倍率 / 100),
+            最大内接円 = diameter_in / (倍率 / 100),
+            フェレ径比 = feret_diameter_ratio,
+            アスペクト比 = aspect_ratio,
+            圧縮度 = compactness,
+            円径比 = 最大内接円 / 最小外接円,  # sphericity
+            針状度 = 1 -exp(-3 *abs(1 -圧縮度) *(1 -円径比) /アスペクト比),  # (圧縮度 / アスペクト比) / 2,  # acicularity
+            円形度 = circularity,
+            円形度2 = circularity2,
+            円形度3 = circularity3,
+            円磨度 = roundness,
+            包絡度 = convexity,
+            面積包絡度 = solidity,
+            矩形度 = rectangularity,
+            頂点数 = apex_n,
+            角度_平均 = angle_mean,
+            角度_標準偏差 = angle_sd,
+            角度_最小 = angle_min,
+            角度_最大 = angle_max,
             角度_mmr = 角度_最小 / 角度_最大,
             ## 1 - exp(-((角度_最大 + 角度_最大) / 2 / 角度_標準偏差) / 頂点数)  # (角度_平均 / 角度_標準偏差) / 頂点数
             角度_変動係数 = 1 / (1 +exp(-3 *((角度_最小 +角度_最大) /2 /角度_標準偏差) /頂点数)) ^3,
-            円径比 = 最大内接円 / 最小外接円,  # sphericity
-            針状度 = 1 -exp(-3 *abs(1 -圧縮度) *(1 -円径比) /アスペクト比),  # (圧縮度 / アスペクト比) / 2,  # acicularity
             ギザ度 =  (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5,  # edge roughness
             内接モコ度 = (pi * 最大内接円) / 周囲長,  # aka., roughness
             外接モコ度 = 周囲長 / (pi * 最小外接円),
@@ -436,11 +467,10 @@ pk. <- function(excel = T, ...) {
             ギア元幅 = ギア突出量 *(1 + 2 /tan((1 -(角度_最小 +角度_最大) /2 /180) *pi)),  # 角度_平均
             ## ルイスの式: 歯先に働く力 = 歯型係数*歯元応力*基準円*歯幅 ~ k*基準円*歯幅 = k*(π*モジュール)*歯幅 ~ モジュール*歯幅
             MVP = log10(ギアmodule * ギア元幅)  # モジュール*歯幅; Momentum of vertex points
+          # 座標 = apex_xy
           ) %>%
-         # select(-c(contains('ギア'), 座標)) %>%
-          relocate(圧縮度, 円径比, 針状度, .after = アスペクト比) %>%
-          relocate(円磨度, .after = 円形度3) %>%
-          relocate(VBA, MVP, .after = date)
+          relocate(VBA, MVP, .before = 面積) %>%
+          select(-area:-apex_xy)
 
 
   ## summarise function
@@ -502,6 +532,79 @@ pk. <- function(excel = T, ...) {
     cat('\n    Shape factor data has been created on your Desktop...\n\n')
   }
   return(tmp2)  # raw data
+}
+
+## Pick Sdorpion csv data in your folder and make them together tidy one == (2024-07-17) ========================
+pk2. <- function(excel = T, ...) {
+  ## Interactive input for the magnification of SEM image
+  repeat {
+    numb <- readline('\n    SEM倍率を入力してください  \n>>> ')
+    if (zenk.(numb) %>% {skipMess.(as.numeric(.))} %>% {!is.na(.)}) {
+      numb <- zenk.(numb) %>% as.numeric(numb)
+      if (numb %% 10 != 0) cat('\n   Your input is not proper...\n\n')
+      if (numb > 10 && numb %% 10 == 0) break
+    }
+  }
+  cat(str_dup('=', times = 50), '\n')
+
+  cat('\n   さきの倍率と同じcsvを選択してください  \n>>> ')
+  tmp <- skipMess.(vroom.()) %>%
+         .[!str_detect(names(.), '\\.')] %>%
+         mutate(
+           倍率 = numb,
+           面積 = area / (倍率 / 100) ^ 2,
+           包絡面積 = convex_area / (倍率 / 100) ^ 2,
+           矩形面積 = NA_real_,
+           周囲長 = perimeter / (倍率 / 100),
+           包絡長 = convex_perimeter / (倍率 / 100),
+           矩形短辺 = l_minor / (倍率 / 100),
+           矩形長辺 = l_major / (倍率 / 100),
+           平均軸径 = (矩形短辺 + 矩形長辺) / 2,
+           水平フェレ径 = feret_diameter_w / (倍率 / 100),
+           鉛直フェレ径 = feret_diameter_h / (倍率 / 100),
+           等価円周 = circle_equivalent_perimeter / (倍率 / 100),
+           円相当径 = circle_equivalent_diameter / (倍率 / 100),
+           最大内接円 = NA_real_,
+           最小外接円 = NA_real_,
+           フェレ径比 = pmin(水平フェレ径 / 鉛直フェレ径, 鉛直フェレ径 / 水平フェレ径),
+           アスペクト比 = aspect_ratio,
+           圧縮度 = compactness,
+           円径比 = NA_real_,  # sphericity
+           針状度 = NA_real_,  # acicularity
+           円形度 = circularity,
+           円形度2 = NA_real_,
+           円形度3 = NA_real_,
+           円磨度 = roundness,
+           包絡度 = convexity,
+           面積包絡度 = solidity,
+           矩形度 = rectangularity,
+           頂点数 = NA_real_,
+           角度_平均 = NA_real_,
+           角度_標準偏差 = NA_real_,
+           角度_最小 = NA_real_,
+           角度_最大 = NA_real_,
+           角度_mmr = NA_real_,
+           ## 1 - exp(-((角度_最大 + 角度_最大) / 2 / 角度_標準偏差) / 頂点数)  # (角度_平均 / 角度_標準偏差) / 頂点数
+           角度_変動係数 = NA_real_,
+           ギザ度 =  NA_real_,  # edge roughness
+           内接モコ度 = NA_real_,  # aka., roughness
+           外接モコ度 = NA_real_,
+           内面モコ度 = NA_real_,
+           外面モコ度 = NA_real_,
+           ## Vertex Boundary Angularity; not an abbraviation of beaver
+           VBA = NA_real_,
+           ギアmodule = NA_real_,
+           ギア突出量 = NA_real_,
+           ギア元幅 = NA_real_,
+           ## ルイスの式: 歯先に働く力 = 歯型係数*歯元応力*基準円*歯幅 ~ k*基準円*歯幅 = k*(π*モジュール)*歯幅 ~ モジュール*歯幅
+           MVP = NA_real_  # モジュール*歯幅; Momentum of vertex points
+         # 座標 = apex_xy
+         ) %>%
+         relocate(VBA, MVP, .before = 面積) %>%
+         select(-area:-circularity)
+
+  if (excel == TRUE) write2.(tmp)
+  return(tmp)
 }
 
 
@@ -671,10 +774,10 @@ case2. <- function(d, div = NULL, percentage = T, ...) {
   if (is.atomic(d)) d <- tibble(d)
   if (is.data.frame(d) && ncol(d) > 1) stop('Make the data with ONE column...\n\n', call. = F)
   d <- d %>% dplyr::filter(rowSums(is.na(.)) != ncol(.))
-  label <- case_when(d < div ~ str_c('x < ', div), TRUE ~ str_c('x ≥ ', div))
+  label <- dplyr::case_when(d < div ~ str_c('x < ', div), TRUE ~ str_c('x ≥ ', div))
   if (percentage == TRUE) {
     per_chr <- formatC(100 *table(label) /length(label), format = 'f', digits = 1) %>% str_c(., '%')
-    label <- case_when(str_detect(label, '<') ~ str_c(label, '\n(', per_chr[1], ')'), TRUE ~ str_c(label, '\n(', per_chr[2], ')'))
+    label <- dplyr::case_when(str_detect(label, '<') ~ str_c(label, '\n(', per_chr[1], ')'), TRUE ~ str_c(label, '\n(', per_chr[2], ')'))
   }
   out <- d %>% mutate(label)  # case_when in mutate() needs real column name ('d <' is incorrect)
   names(out)[1] <- names(d) %||% 'data'
@@ -1014,51 +1117,53 @@ neatChr. <- function(chr, ...) {  # c('nya :: A', 'nya :: B') --> c('A', 'B')
 }
 
 
-## Interactive filter == (2023-10-27) ========================
-choice. <- function(factors, note = NULL, freqs = NULL, chr = T, one = F, len_max = NULL, fulltext = F, ...) {
-  ## freqs denotes each N of the factors, chr = T returns text (F returns number)
+## Interactive filter == (2024-07-17) ========================
+choice. <- function(factors, note = NULL, chr = T, one = F, ...) {
+  ## chr = T returns the text in the choice (F returns the number of choice)
   factors <- unlist(factors)  # In case of X x 1 tibble
   if (length(factors) == 0) return(NULL)
   if (length(factors) == 1) return(factors)
-  if (!is.null(len_max) && length(factors) == len_max) return(factors)
-  tmp <- rep(NA_character_, length(factors))
-  if (!is.null(freqs)) {
-    chrLen <- map_dbl(factors, ~ nchar(., type = 'width'))
-    spaceLen <- max(chrLen) -chrLen +1
-    freqN <- map.(seq_along(tmp), ~ str_c(str_flatten(rep(' ', spaceLen[.])), '(N = ', freqs[.], ')'))
-  } else {
-    freqN <- NULL
-  }
-  for (i in seq_along(tmp)) tmp[i] <- str_c('   [', i, ']', ifelse(i < 10, '  ', ' '), factors[i], freqN[i], '\n')
+
+  ## interactive display
   if (one == TRUE) {
-    cat('\n    Choose No. from below;\n\n', tmp)
+    tmp <- rep(NA_character_, length(factors))
+    for (i in seq_along(tmp)) tmp[i] <- str_c('   [', i, ']', ifelse(i < 10, '  ', ' '), factors[i], '\n')
   } else {
-    cat('\n    Choose multi-No. from below.\n    Multi-No. is OK like 1 2 3 or 1,2,3 or 1.2.3;\n\n', tmp)
+    tmp <- rep(NA_character_, length(factors) + 1)
+    for (i in seq_along(tmp)) {
+      if (i == 1) tmp[i] <- str_c('   [0]  ALL\n')
+      if (i > 1) tmp[i] <- str_c('   [', i - 1, ']', ifelse(i < 10, '  ', ' '), factors[i - 1], '\n')
+    }
   }
+  cat('\n', tmp)
+
+  ## to get text or number
+  if (one == TRUE) note2 <- note %||% 'Select No.'
+  if (one == FALSE) note2 <- {note %||% 'Select No.'} %>% str_c(., '\n    Input like 1 2 3  or  1,2,3  or  1.2.3  or  1:3')
+
   repeat {
-    if (fulltext == TRUE) {
-      num <- readline(str_c('    ', note, '\n>>> '))
-    } else {
-      num <- readline(str_c('    Which No.', if_else(is.null(note), '', str_c(' as \"', note, '\"')), ' ?\n>>> '))
-    }
-    num <- gsub(',|\\.|\\*|/|;| |  ', '_', num) %>%
-           str_split('_') %>%
-           unlist() %>%
-           {.[!. %in% '']} %>%
-           correctChr.() %>%
-           map.(~ eval(parse(text = .))) %>%
-           unique() %>%
-           .[!is.na(.)]  # To gurantee your input as numeric    
-    if ((num >= 1 & num <= length(factors)) %>% all()) {  # This if () restricts proper range and prohibit minus or oversized.
-      if (one == TRUE && length(num) == 1) break
-      if (one == FALSE && length(num) >= 1 && is.null(len_max)) break
-      if (!is.null(len_max) && length(num) == len_max) break
-    }
+    numb <- readline(str_c('    ', note2, '\n>>> '))
+    numb <- gsub(',|\\.|\\*|/|;| |  ', '_', numb) %>%
+            str_split('_') %>%
+            unlist() %>%
+            {.[!. %in% '']} %>%
+            correctChr.() %>%
+            map.(~ eval(parse(text = .))) %>%
+            unique() %>%
+            .[!is.na(.)]  # To gurantee your input as numeric
+
+    ## safe guard for wrong input
+    if (all(numb == 0)) numb <- seq_along(factors); break
+    if (all(numb >= 1) && one == TRUE && length(numb) == 1) break
+    if (all(numb >= 1) && one == FALSE && length(numb) >= 1) numb <- numb + 1; break
   }
-  str_c('|', str_dup(stringi::stri_unescape_unicode('\\u2588'), 24), '|\n') %>% cat
-# if (Sys.info()['sysname'] != 'windows') cat('|████████████████████████|\n')
-  return(if (chr == TRUE) factors[num] else num)  # text or its number
-# choice.(LETTERS[1:2], note = 'Blood type', one = T)  choice.(names(iris), note = 'xy data', chr = F, len_max = 2)
+  numb <- numb[numb <= length(factors)]  # safe guard for overshoot input
+  out <- if (chr == TRUE) factors[numb] else numb  # text or its number
+
+  str_c('|', str_dup(stringi::stri_unescape_unicode('\\u2588'), 24), '|\n') %>% cat()
+  return(out)
+# choice.(LETTERS[1:2], note = 'Blood type', one = T)
+# choice.(names(iris), note = 'xy data', chr = F)
 }
 
 
@@ -1082,7 +1187,7 @@ halfSeq. <- function(vec, ...) vec[-1] -diff(vec) /2  # Solution of bn = (an+1 -
 axisFun. <- function(XYlims, n = 5, ...) pretty(XYlims, n = n) %>% list(mainTicks = ., subTicks = halfSeq.(.))
 
 
-## Cyclic number if it's over range for the interactive input == (2023-10-27) ========================
+## Cyclic number if it's over range for the interactive input == (2024-07-03) ========================
 n_cyc. <- function(num, n_max, len_max = NULL, ...) {
   if (all(is.na(num))) return(n_max)
   num_changer <- function(x) {
@@ -1091,7 +1196,7 @@ n_cyc. <- function(num, n_max, len_max = NULL, ...) {
          ifelse(. != 0, ., n_max)  # just in case of x = n_max or 0
     return(x)
   }
-  num <- case_when(is.na(num) ~ NA_integer_, TRUE ~ num_changer(num))
+  num <- num_changer(num)
   if (!is.null(len_max)) num <- rep(num, len_max) %>% .[1:len_max]
   return(num)
 # n_cyc.('12', 5)  n_cyc.(4:7, 5)  n_cyc.(c(1,NA,9), 5, len_max = 6)
@@ -1182,7 +1287,7 @@ color2. <- function(col = NULL, len = NULL, ...) {
       ocean_pal <- colorRampPalette(c('#003000','#005E8C','#0096C8','#45BCBB','#8AE2AE','#BCF8B9'))
       land_pal <- colorRampPalette(c('#467832','#887438','#B19D48','#DBC758','#FAE769','#FCED93'))
 
-      rand <- floor(runif(1, min = 1, max = case_when(len <= 11 ~ 10, len <= length(color_base) ~ 11, TRUE ~ 9)))
+      rand <- floor(runif(1, min = 1, max = dplyr::case_when(len <= 11 ~ 10, len <= length(color_base) ~ 11, TRUE ~ 9)))
 
       out <- if (rand == 1) viridisLite::viridis(len +1, option = 'A')[-(len +1)] else
              if (rand == 2) viridisLite::viridis(len +1, option = 'D')[-(len +1)] else
@@ -1212,8 +1317,8 @@ haloText. <- function(x, y, labels, cex, col = 'grey13', bg = 'white', theta = s
 yPos. <- function(ylim2, ...) {
   ## strwidth('0')/strwidth('.') = 1, strwidth('0')/strwidth('.') = 2.230769 
   len <- axisFun.(ylim2, n = 6)[[1]] %>% {.[between(., ylim2[1], ylim2[2])]}  # fix 9.3 when it's over "10000"
-# out <- len %>% {str_count(., '\\.') *1 +str_count(., '[:digit:]') *2.230769} %>% max(.) %>% if_else(.<9,.,9.3) %>% {2.6179 -0.1873 *.}
-  out <- len %>% {str_count(., '\\.') *1 +str_count(., '[:digit:]') *2.230769} %>% max(.) %>% if_else(.<9,.,9.3) %>% {2.6179 -0.1729 *.}
+# out <- len %>% {str_count(., '\\.') *1 +str_count(., '[:digit:]') *2.230769} %>% max(.) %>% dplyr::if_else(.<9,.,9.3) %>% {2.6179 -0.1873 *.}
+  out <- len %>% {str_count(., '\\.') *1 +str_count(., '[:digit:]') *2.230769} %>% max(.) %>% dplyr::if_else(.<9,.,9.3) %>% {2.6179 -0.1729 *.}
   return(out)
 }
 
@@ -1369,12 +1474,12 @@ intersectX. <- function(df1, df2, ...) {
 }  # plt.(list(df1, df2)); abline(v = intersectX.(df1, df2))
 
 
-## Frame of plot == (2023-11-15) ========================
+## Frame of plot == (2024-04-25) ========================
 plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = par('tcl'), padj = -0.1, rot = 0, cexlab = NULL,
                         bty = c('o', 'l')[1], xlab = NULL, ylab = NULL, yline = NULL, ...) {
   ## if you know xtype is 'num' in advance, xy = NULL is the shortcut
   xtype <- if (!is.null(xy)) {
-    case_when(sapply(xy[1], is.numeric) ~ 'num',
+    dplyr::case_when(sapply(xy[1], is.numeric) ~ 'num',
               sapply(xy[1], is_time.) ~ 'time',
               map_lgl(xy[1], ~ is.character(.x) | is.factor(.x)) ~ 'chr'
     )
@@ -1427,7 +1532,7 @@ plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = p
     }
     ## x-label
     item_name <- make.unique2(xy[[1]])
-    yPos <- par('usr')[3] -0.035 *delta.(par('usr')[3:4]) *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.6))
+    yPos <- par('usr')[3] -0.035 *delta.(par('usr')[3:4]) *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60), c(0.9, 0.8, 0.7, 0.06))
     nameLen <- stringi::stri_numbytes(item_name) %>% max.()  # Count including multi bytes char and space
     rot_cex <- whichSize.(ref = nameLen, vec = c(5, 10, 15), c(0.9, 0.8, 0.7)) %>%
                {. *whichSize.(ref = length(item_name), vec = c(8, 15, 35, 60, 100), c(1, 0.8, 0.75, 0.7, 0.4))}
@@ -1448,7 +1553,7 @@ plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = p
 }
 
 
-## Quick plot == (2023-12-09) ========================
+## Quick plot == (2024-07-10) ========================
 plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, xlim = NA, ylim = NA, name = NULL,
                  type = c('l', 'p', 'pp', 'b', 'bb', 'h', 's')[1], col = NULL, col_flag = NULL, lty = NULL, lwd = NULL, pch = NULL,
                  add = 1, grid = T, rot = 0, cexlab = NULL, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, PDF = T, multi = F)
@@ -1484,12 +1589,12 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
       if (ncol(d) == 1) d <- d %>% rowid_to_column('x')  # [y] -->  [seq,y]
 
       ## data type: x as num/chr/fac/time, y as num
-      d <- time2.(d) %>%
+      d <- time2.(d, div = 'day') %>%
            mutate_if(is.character, as.factor) %>%  # chr --> fac
            relocate(where(~ !is.numeric(.)))  # reorder column [y1,y2, x,...] --> [x, y1,y2,...]
       t_names <- names(d)[sapply(d, is_time.)] %>% choice.(one = T, note = 'Time factor')  # time
       x_names <- names(d)[sapply(d, is.factor)] %>%
-                 choice.(len_max = 2, note = 'Choose less than TWO X factors')  # 2 factor columns are available
+                 choice.(note = 'Choose less than TWO X factors')  # 2 factor columns are available
       x_name2 <- map_dbl(d[c(t_names, x_names)], n_distinct) %>% which.max() %>% names()
       flag2 <- c(t_names, x_names) %>%
                .[!. == x_name2] %>% {
@@ -1509,7 +1614,7 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
       color_flag <- function(basic_color) {
         if (is.null(flag2)) return(basic_color)
         all_colors <- c(set_names(basic_color, major_factor), minor_colors)
-        tmp0 <- as.character(d[[flag2]]) %>% all_colors[.] %>% {case_when(is.na(.) ~ set_names('grey85', 'unknown'), TRUE ~ .)}
+        tmp0 <- as.character(d[[flag2]]) %>% all_colors[.] %>% {dplyr::case_when(is.na(.) ~ set_names('grey85', 'unknown'), TRUE ~ .)}
         return(tmp0)
       }
 
@@ -1520,8 +1625,8 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
                   group_by_if(~ !is.numeric(.)) %>%
                   summarise_all(list(
                     mean = ~ mean.(.),
-                    lower = ~ if_else(sd.(.) == 0, NA_real_, mean.(.) - sd.(.)),
-                    upper = ~ if_else(sd.(.) == 0, NA_real_, mean.(.) + sd.(.))
+                    lower = ~ dplyr::if_else(sd.(.) == 0, NA_real_, mean.(.) - sd.(.)),
+                    upper = ~ dplyr::if_else(sd.(.) == 0, NA_real_, mean.(.) + sd.(.))
                   )) %>%
                   select_if(colSums(is.na(.)) != nrow(.))
                 } else {
@@ -1575,7 +1680,8 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
       ##      L x$[y1,y2,y3,...] --> select y1, y2
       if (!is.null(x_name2)) {
         ## avoid NAs from reduced to one NA
-        d <- d %>% mutate(!!x_name2 := make.unique2(get(x_name2)) %>% as.factor())  # 'A1',NA,NA,'A2' --> 'A1','NA1','NA2','A2'
+        ## ? [2024-06-21] mutate(!!x_name2 := make.unique2(get(x_name2)) %>% as.factor())
+      # d <- d %>% mutate(!!x_name2 := make.unique2(x_name2) %>% as.factor())  # 'A1',NA,NA,'A2' --> 'A1','NA1','NA2','A2'
 
         if (n_distinct(d[x_name2]) > 5) {  # trend (with/without flag)
           tmp <- d %>%
@@ -1586,7 +1692,7 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
           if (ncol(d) == 2) {
             tmp <- d %>% single_trend()  # B1~B2) keep single trend line with flag X
           } else {
-            tmp <- d %>% select(c(all_of(x_name2), choice.(y_names, len_max = 2, note = 'Two numeric'))) %>% split2.()
+            tmp <- d %>% select(c(all_of(x_name2), choice.(y_names, note = 'Two numeric'))) %>% split2.()
           }  # C1) divide it from a few of levels to x-y plot
         }
       }
@@ -1604,7 +1710,7 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
              lwd = lwd %||% whichSize.(ref = nrow(out), vec = c(5, 10, 25, 50), mirror = c(1.5, 1.1, 0.8, 0.35)),
              pch_point = if (type[1] %in% c('p', 'b')) 1 else if (type[1] %in% c('pp', 'bb')) 19 else NA,
              pch_legend = if (anyNA(pch) && type[1] %in% c('p', 'pp', 'b', 'bb')) NA else pch_point,
-             cex_point = map_dbl(out$data, function(x) ifelse(is.null(x), 0, nrow(x))) %>% {case_when(. > 1000 ~ 0.8, . == 0 ~ 0, TRUE ~ 1)}
+             cex_point = map_dbl(out$data, function(x) ifelse(is.null(x), 0, nrow(x))) %>% {dplyr::case_when(. > 1000 ~ 0.8, . == 0 ~ 0, TRUE ~ 1)}
            )
     return(out)
 
@@ -1676,20 +1782,22 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
 }
 
 
-## Kernel Density Estimation plot == (2024-02-09) ========================
-dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = c(0, NA), name = NULL, col = NULL, lty = 1, lwd = NULL, grid = T,
-                  xlab = NULL, ylab = NULL, legePos = NULL, cum = F, ...) {
+## Kernel Density Estimation plot == (2024-07-17) ========================
+dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = NA, name = NULL, col = NULL, lty = 1, lwd = NULL, grid = T,
+                  xlab = NULL, ylab = NULL, legePos = NULL, cum = F, write = F, ...) {
   ## convert a vector to kde
   query_lib.(logKDE)
   kde_xy <- function(vec) {
     vec <- vec[!is.na(vec)]
-    BW <- list('nrd0', 'Sj-ste',  # Sheather-Jones
+    BW <- list('nrd0',
+               'Sj-ste',  # Sheather-Jones
                (4/3) ^(1/5) *sd(vec) *length(vec) ^(-1/5),  # Silverman's rule of thumb is sensitive to outliers
-            ## https://www.jstage.jst.go.jp/article/transinf/E102.D/1/E102.D_2018EDP7177/_pdf
+               # https://www.jstage.jst.go.jp/article/transinf/E102.D/1/E102.D_2018EDP7177/_pdf
                1.06 *median(abs(vec -median(vec))) /0.6745 *length(vec) ^(-1 /(2 *2 +1)),  # More robust sd
                1.08 *median(abs(vec -median(vec))) /0.6745 *length(vec) ^(-1 /(2 *4 +1)),
                1.08 *median(abs(vec -median(vec))) /0.6745 *length(vec) ^(-1 /(2 *6 +1))
-          ) %>% .[[bw]]
+          ) %>%
+          .[[n_cyc.(ceiling(bw), 6)]]  # ceiling() is a hack in case of square density analysis
 
     ## Min adjustment
     Dens <- density(vec, na.rm = T, bw = BW, n = 1300)
@@ -1698,7 +1806,9 @@ dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = c(0, NA), na
         mins <- vector()
         icut <- seq(1, 0.4, by = -0.005)
         for (i in seq_along(icut)) {  # Sometimes warning; 'Auto-range choice cut-off at 0'
-          mins[i] <- skipMess.(logKDE::logdensity(vec, na.rm = T, bw = BW, n = 1300, adjust = icut[i])) %>% .$x %>% min  # bw <- adjust *bw
+          mins[i] <- skipMess.(logKDE::logdensity(vec, na.rm = T, bw = BW, n = 1300, adjust = icut[i])) %>%
+                     .$x %>%
+                     min(.)  # bw <- adjust *bw
         }
         adji <- whichNear.(ref = xlim[1], vec = mins) %>% icut[.]
         Dens <- skipMess.(logKDE::logdensity(vec, na.rm = T, bw = BW, n = 1300, adjust = adji))
@@ -1713,9 +1823,21 @@ dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = c(0, NA), na
     }
     return(tibble(x = Dens$x, y = Dens$y))
   }  # END of kde_xy()
-  dL <- dLformer.(d, ord) %>% map(kde_xy) %>% {if (cum == TRUE) map(., cdf.) else .}
-      # stop('Only available for [ID,y] or [y1,y2, ...]', call. = F)
-# if (length(xlim) == 2 && !is.na(xlim[1])) xlim <- NA  # the graph is hard to see if the x limit is set
+  
+  ## transformation
+  dL <- dLformer.(d, ord) %>% map(kde_xy)
+  if (between(bw, 0, 1) == TRUE) {  # make the density ^ bw to highlight max channel
+    bw2 <- function(x) {x[, 2] <- x[, 1] * x[, 2] ^ bw; return(x)}
+    dL <- map(dL, bw2)
+  }
+  if (cum == TRUE) dL <- map(dL, cdf.)
+
+  ## draw
+  if (is.na(ylim[1]) == TRUE) {
+    ymin_hook <- lapply(dL, '[', 2) %>% unlist() %>% delta.()
+    ylim <- if (ymin_hook > 1) c(log10(1 / ymin_hook) / 3, NA) else ymin = c(0, NA)
+    if (bw < 1) ylab <- ylab %||% str_c('Probability density (', round(bw, 2), ' powered moment)')
+  }
   plt.(dL, sel=sel, xlim=xlim, ylim=ylim, name=name, col=col, lty=lty, lwd=lwd, grid=grid, xlab=xlab, ylab=ylab, legePos=legePos)
 
   ## p-th percentile
@@ -1725,9 +1847,12 @@ dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = c(0, NA), na
          bind_rows(., map(dL, ~ sd.(.$x) / mean.(.$x))) %>%  # cv
          bind_cols(percentile = c(str_c('p', c(0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9)), 'mean', 'sd', 'cv'), .)  # name
   print(out)
+
+  ## write out
+  if (write == TRUE) write2.(dL)
+
 # dens.(iris[4:5], cum = T)
-# dens.(iris[4])
-# dens.(iris[4], xlim = c(0, NA))
+# dens.(iris[4], 0.5)
 }
 
 
@@ -1758,7 +1883,7 @@ crp. <- function(d, ord = F, sel = NULL, xlim = NA, ylim = c(-0.01, 1.05), name 
     mdl <- lazy_call.(x = d_cum, y = NULL, pLL, f, ext = T, y1 = 0, y2 = 0)
     if (ext == TRUE) {  # extended full x range
       qx <- seq(minmax[1], minmax[2], length = 200)
-      qxy <- tibble(x = qx, y = predict(mdl$model, newdata = tibble(x = qx)) %>% {case_when(. < 0 ~ 0, . > 1 ~ 1, TRUE ~ .)})
+      qxy <- tibble(x = qx, y = predict(mdl$model, newdata = tibble(x = qx)) %>% {dplyr::case_when(. < 0 ~ 0, . > 1 ~ 1, TRUE ~ .)})
     } else {
       qxy <- mdl$xy
     }
@@ -2255,7 +2380,7 @@ box1plot. <- function(yL, type = 'half', col, xlab = NULL, ylab = NULL, ylim = N
 
   ## plot & color data
   xPos <- 2 *seq(length(yL)) -1  # NA is not omitted yet
-  bgcolorL <- map2(as.list(col), yL, ~ if_else(.x == '#FFFFFF00', 'grey13', .x) %>% rep(times = length(.y)))
+  bgcolorL <- map2(as.list(col), yL, ~ dplyr::if_else(.x == '#FFFFFF00', 'grey13', .x) %>% rep(times = length(.y)))
 
   ## fivenum() is agreed with quantile() if vec is odd, but if even, fivenum() is a bit wider than quantile()
   ## Moreover, some cases make wrong whiskers that have no points more or less than 95th or 5th by quantile()
@@ -2270,8 +2395,8 @@ box1plot. <- function(yL, type = 'half', col, xlab = NULL, ylab = NULL, ylim = N
     CX <- map_dbl(yL, n_distinct) %>% max() %>% whichSize.(ref = ., vec = c(500, 100, 13, 4), c(0.2, 0.35, 0.7, 0.8))
     for (i in seq_along(yL)) {
       d_strip <- tibble(x = xPos[i], y = yL[[i]]) %>%
-                 mutate(pch = case_when(y >= c1[i] & y <= c5[i] ~ 21, TRUE ~ 4),
-                        col = case_when(pch == 21 ~ col_tr.(bgcolorL[[i]], 0.55), TRUE ~ col_tr.('grey13', 0.8)),
+                 mutate(pch = dplyr::case_when(y >= c1[i] & y <= c5[i] ~ 21, TRUE ~ 4),
+                        col = dplyr::case_when(pch == 21 ~ col_tr.(bgcolorL[[i]], 0.55), TRUE ~ col_tr.('grey13', 0.8)),
                         bg = bgcolorL[[i]]
                  ) %>%
                  dplyr::filter(!is.na(y))
@@ -2314,8 +2439,8 @@ box1plot. <- function(yL, type = 'half', col, xlab = NULL, ylab = NULL, ylim = N
       if (!is.na(dD[3, i]) && round(dD[3, i] -dD[2, i], Digit +1) < 0.7 *10 ^(-Digit)) dD[3, i] <- NA
     }
     # haloText.(xPos+AT, dD[2,], labels=sprintf(str_c('%.',Digit,'f'), dD[2,]), cex=tCex*1.5)  # too slow ...
-    text(xPos+AT, dD[2,], labels=sprintf(str_c('%.',Digit,'f'), dD[2,]), col ='white', cex=tCex*1.5*1.05, adj=if_else(AT!=0,0.1,0.5))  # alternative haloText.
-    text(xPos+AT, dD[2,], labels=sprintf(str_c('%.',Digit,'f'), dD[2,]), col ='grey13', cex=tCex*1.5*0.95, adj=if_else(AT!= 0,0.1,0.5))
+    text(xPos+AT, dD[2,], labels=sprintf(str_c('%.',Digit,'f'), dD[2,]), col ='white', cex=tCex*1.5*1.05, adj=dplyr::if_else(AT!=0,0.1,0.5))  # alternative haloText.
+    text(xPos+AT, dD[2,], labels=sprintf(str_c('%.',Digit,'f'), dD[2,]), col ='grey13', cex=tCex*1.5*0.95, adj=dplyr::if_else(AT!= 0,0.1,0.5))
     text(xPos+AT, dD[1,], labels=sprintf(str_c('%.',Digit,'f'), dD[1,]), col ='grey70', cex=tCex, adj =c(0.5, 1.8))
     text(xPos+AT, dD[3,], labels=sprintf(str_c('%.',Digit,'f'), dD[3,]), col ='grey70', cex=tCex, adj =c(0.5, -1.0))
   }  # END of textFun()
@@ -2450,7 +2575,7 @@ boxplot22. <- function(tnL, type, jit, val, wid, ylim, rot, cex, cut, digit, mar
     color_lvs <- rev(color2.())[seq_along(lvs)]  # color2.(len = length(lvs))
     bg_markL <- markL %>% map(function(x) map_chr(x, ~ {lvs %in% .} %>% color_lvs[.]))
   } else {
-    bg_markL <- map2(as.list(col), yL, ~ if_else(.x == '#FFFFFF00', 'grey13', .x) %>% rep(times = length(.y)))
+    bg_markL <- map2(as.list(col), yL, ~ dplyr::if_else(.x == '#FFFFFF00', 'grey13', .x) %>% rep(times = length(.y)))
   }
   xPos <- 2 *seq(length(yL)) -1  # NA is not omitted yet
   CX <- length.(yL) %>% max() %>% whichSize.(ref = ., vec = c(500, 100, 13, 4), c(0.2, 0.35, 0.7, 0.8))
@@ -2467,8 +2592,8 @@ boxplot22. <- function(tnL, type, jit, val, wid, ylim, rot, cex, cut, digit, mar
   points_outliers <- function(...) {
     for (i in seq_along(yL)) {
       d_strip <- tibble(x = xPos[i], y = yL[[i]]) %>%
-                 mutate(pch = case_when(y >= c1[i] & y <= c5[i] ~ 21, TRUE ~ 4),
-                        col = case_when(pch == 21 ~ col_tr.(bg_markL[[i]], 0.55), TRUE ~ col_tr.('grey13', 0.8)),
+                 mutate(pch = dplyr::case_when(y >= c1[i] & y <= c5[i] ~ 21, TRUE ~ 4),
+                        col = dplyr::case_when(pch == 21 ~ col_tr.(bg_markL[[i]], 0.55), TRUE ~ col_tr.('grey13', 0.8)),
                         bg = bg_markL[[i]]
                  ) %>%
                  dplyr::filter(!is.na(y))
@@ -2853,8 +2978,8 @@ smz. <- function(d, sel = NULL, pareto = F, this = NULL,  # this means the hight
          list(
            n = ~ n(),  # none of dot
            avg = ~ mean.(.),
-           lower = ~ if_else(n == 1, NA_real_, mean.(.) - sd.(.)),
-           upper = ~ if_else(n == 1, NA_real_, mean.(.) + sd.(.)),
+           lower = ~ dplyr::if_else(n == 1, NA_real_, mean.(.) - sd.(.)),
+           upper = ~ dplyr::if_else(n == 1, NA_real_, mean.(.) + sd.(.)),
            m = ~ min.(.),
            M = ~ max.(.),
            p5 = ~ percentile.(., probs = 0.05),
@@ -3218,7 +3343,7 @@ mat2. <- function(dt, xlim = NA, ylim = NA, xlab = '', ylab = '', ...) {  # matp
 
 
 ## Inf & NaN -> zero == (2023-07-21) ========================
-clean0. <- function(y, ...) y %>% {case_when(. %in% c(NA, NaN, -Inf, Inf) ~ 0, TRUE ~ .)}  # clean0.(c(1:3, NA, NaN, Inf, -Inf))
+clean0. <- function(y, ...) y %>% {dplyr::case_when(. %in% c(NA, NaN, -Inf, Inf) ~ 0, TRUE ~ .)}  # clean0.(c(1:3, NA, NaN, Inf, -Inf))
 clean1. <- function(d, ...) {
   d <- rowid_to_column(d, 'iD')
   clean_row <- d %>%
@@ -3256,7 +3381,7 @@ omit2. <- function(x) {
 trim. <- function(d, cuts = c(0.25, 0.75)) {
   out <- map_df(d, function(x) {
                      if (!is.numeric(x)) return(x)
-                     case_when(x < percentile.(x, cuts[1]) ~ NA_real_,
+                     dplyr::case_when(x < percentile.(x, cuts[1]) ~ NA_real_,
                                x > percentile.(x, cuts[2]) ~ NA_real_,
                                TRUE ~ x
                      )
@@ -3275,7 +3400,7 @@ def. <- function(defnames, values) for (i in seq_along(defnames)) assign(defname
 map. <- function(.x, .f, ... ) purrr::map(.x, .f, ... ) %>% unlist(., use.names = F)
 
 ## Signature function for math treatment == (2020-01-05) ========================
-sgn. <- function(x) case_when(x > 0 ~ 1, x == 0 ~ 0, x < 0 ~ -1)
+sgn. <- function(x) dplyr::case_when(x > 0 ~ 1, x == 0 ~ 0, x < 0 ~ -1)
 
 ## Rescaling (min-max normalization) for math treatment == (2023-07-21) ========================
 rescaling. <- function(x) {  # convert into [0, 1]
@@ -3417,7 +3542,7 @@ hl_mean. <- function(x) {
       }
     } else {
       NA_real_
-    }
+     }
   }
   if (is.atomic(x)) {
     hl_mean0.(x)
@@ -3801,8 +3926,8 @@ mcr. <- function(x, zero = F) {
   ## https://www.sciencedirect.com/topics/engineering/zero-crossing-rate
   mcr0. <- function(x, zero) if (is.atomic(x) && is.numeric(x)) {
     target <- if (zero == TRUE) 0 else mean(x, na.rm = T)  # or zero crossing rate
-  # case_when(x -target >= 0 ~ 1, TRUE ~ -1) %>% {. *lag(.)} %>% .[!is.na(.)] %>% {case_when(. < 0 ~ 1, TRUE ~ 0)} %>% mean
-    omit2.(x) %>% {case_when(. >= target ~ 1, TRUE ~ -1)} %>% {mean((. -lag(.)) /2, na.rm = T)}
+  # dplyr::case_when(x -target >= 0 ~ 1, TRUE ~ -1) %>% {. *lag(.)} %>% .[!is.na(.)] %>% {dplyr::case_when(. < 0 ~ 1, TRUE ~ 0)} %>% mean
+    omit2.(x) %>% {dplyr::case_when(. >= target ~ 1, TRUE ~ -1)} %>% {mean((. -lag(.)) /2, na.rm = T)}
   } else {
     NA_real_
   }
@@ -4064,7 +4189,7 @@ tryReturn. <- function(yourtry) suppressWarnings(try(yourtry, silent = T) %>% {i
 portion. <- function(x, div = 3, ...) {  # ID = 1:7 extracted each for 2 --> [ [1,2],[3,4],[5,6],[7] ]
   if (!is.atomic(x)) stop('Use only a vector...\n\n', call. = F)
   id <- seq_along(x)
-  div_int <- {length(id) %/% div} +if_else(length(id) %% div == 0, 0, 1)
+  div_int <- {length(id) %/% div} + dplyr::if_else(length(id) %% div == 0, 0, 1)
   if (length(id) <= div) return(list(x))
 
   tmpL <- list()
@@ -4174,7 +4299,7 @@ fad0. <- function(vec, shaper = 3, ...) {  # Strongly recommended shaper = 3
 }
 ## 2nd keen to outbreak == (2020-01-17) ========================
 fad_keen. <- function(vec, shaper = 3, ...) {  # Strongly recommended shaper = 3 (only odd)
-  zero_leveler <- function(x) case_when(abs(x) < 1e-20 ~ 0, x == Inf ~ 0, TRUE ~ x)  # Fear of float Inf effect approx. 0 on diff() or . /.
+  zero_leveler <- function(x) dplyr::case_when(abs(x) < 1e-20 ~ 0, x == Inf ~ 0, TRUE ~ x)  # Fear of float Inf effect approx. 0 on diff() or . /.
   seq_diff <- function(x) {
     c(0, 0, diff(x, differences = 2)) %>%
     {sgn.(.) *. ^(shaper -1)} %>%
@@ -4192,7 +4317,7 @@ fad_keen. <- function(vec, shaper = 3, ...) {  # Strongly recommended shaper = 3
 }
 ## 3rd robust to change, for Melon analysis == (2020-01-19) ========================
 fad. <- function(vec, shaper = 3, ...) {  # Strongly recommended shaper = 3 (only odd)
-  zero_leveler <- function(x) case_when(abs(x) < 1e-20 ~ 0, x == Inf ~ 0, TRUE ~ x)  # Fear of float Inf effect approx. 0 on diff() or . /.
+  zero_leveler <- function(x) dplyr::case_when(abs(x) < 1e-20 ~ 0, x == Inf ~ 0, TRUE ~ x)  # Fear of float Inf effect approx. 0 on diff() or . /.
   seq_diff <- function(x) {
     c(0, 0, diff(x, differences = 2)) %>%
     {sgn.(.) *. ^(3 -1)} %>%
@@ -4203,7 +4328,7 @@ fad. <- function(vec, shaper = 3, ...) {  # Strongly recommended shaper = 3 (onl
   mu_increment <- cumsum(vec) /seq_along(vec)
   var_increment <- {1 /(seq_along(vec) -1) *(cumsum(vec ^2) -1 /seq_along(vec) *(cumsum(vec)) ^2)}
   var_increment[1] <- var_increment[2]
-  punisher <- log(sigmoid_weight *((mu_increment -vec) ^2 +var_increment)) %>% {case_when(. == Inf ~ 1, . == -Inf ~ 1, TRUE ~ .)}
+  punisher <- log(sigmoid_weight *((mu_increment -vec) ^2 +var_increment)) %>% {dplyr::case_when(. == Inf ~ 1, . == -Inf ~ 1, TRUE ~ .)}
   stabler <- 10 ^(length(vec) %>% log10(.) %>% {floor(.) +2}) *2 ^(6 *(shaper -3))
   out <- {seq_diff(vec) *seq_diff(punisher)} %>% {cumsum(scale(.)) /length(vec)} %>% {-. ^shaper *stabler}# %>% {sgn.(.) *log(1 +abs(.))}
   return(out)
