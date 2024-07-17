@@ -6,18 +6,18 @@
 # eval(parse(text = script))
 
 
-## Welcome message == (2024-01-10) ========================
+## Welcome message == (2024-07-05) ========================
 ## CAUTION: JupyterLab allows neither cat(), print() nor message() in the welcome message on .Rprofile
 ## https://stackoverflow.com/questions/37689694/real-time-printing-to-console-with-r-in-jupyter
-if (interactive()) cat('\n     ... Now loading ...\n|███████████████████████████|')
+if (interactive()) cat('|██████████████| Now loading |█████████████|\n')
 
 
-## Install vital packages if necessary == (2023-06-13) ========================
+## Install vital packages if necessary == (2024-07-04) ========================
+options(repos = structure(c(CRAN = 'https://ftp.yz.yamagata-u.ac.jp/pub/cran/')))
 pkgs_must <- c('bindrcpp', 'devtools', 'ellipse', 'formattable', 'hablar', 'logKDE', 'minpack.lm', 'naturalsort',
                'pracma', 'psych', 'robustbase', 'scico', 'tidyverse', 'viridis', 'writexl')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
 if (sum(pkgs_lack) > 0) {
-  options(repos = structure(c(CRAN = 'http://cran.ism.ac.jp/')))
   options(showPackageStartupMessages = F)
   for (i in seq_along(which(pkgs_lack))) {
     cat(paste0('\n    trying to install ', pkgs_must[pkgs_lack], '...\n\n'))
@@ -135,30 +135,39 @@ if (Sys.info()['sysname'] == 'Windows') {
 }
 
 
-## Hint message & delete objects == (2024-01-10) ========================
-tips <- "
- Scatter plot | plt.(iris[4:5])
-              | plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
-              | corp.(iris[3:4], el = T, li = F)
-              | ellip.(iris)
-              | sp.(iris, col = 3)
-     KDE plot | dens.(iris[4:5], cum = F)
-              | crp.(iris[2:3])
-    Histogram | hist.(iris[2:3], bin = 0.1, name = c('A', 'B'), overlay = T)
-    Pie chart | pie.(iris[41:120,5], percent = T)
-    Bar plots | barp.(iris, xyChange = T)
-              | barp.(iris, cum = T, xyChange = T)
-              | smz.(diamonds[1:2], this = 2, pareto = T)
-     Box plot | box2.(iris, rot = 20, pareto = T, cut = T)
-              | box2.(diamonds[1:1000, 1:3], mark = 'color')
-              | box2.(id2y.(diamonds[1:1000, 1:3]))
-              | box2.(case2.(us_rent_income[5], div = 100), col = 0)
-              | box2.(time2.(economics[1:50, ], div = 'year'))
-        Stats | stats.(iris, transpose = F, split = T)
-              | smry.(iris, .f = 'sd(x) / mean(x)')
-              | table.(diamonds[2:4])
-              | html.(starwars)
-....\n"
+## Hint message & delete objects == (2024-07-17) ========================
+tips <- paste0("
+• Scatter plot
+      └─| plt.(iris[4:5])
+      └─| plt.(iris[-5], legePos = c(0.01, 0.99), lty = 1)
+      └─| corp.(iris[3:4], el = T, li = F)
+      └─| ellip.(iris)
+      └─| sp.(iris, col = 3)
+• KDE plot
+      └─| dens.(iris[4:5], bw = 0.5, ylab = '')
+      └─| dens.(iris[4:5], cum = F)
+      └─| crp.(iris[2:3])
+• Histogram
+      └─| hist.(iris[2:3], bin = 0.1, name = c('A', 'B'), overlay = T)
+• Pie chart
+      └─| pie.(iris[41:120,5], percent = T)
+• Bar plots
+      └─| barp.(iris, xyChange = T)
+      └─| barp.(iris, cum = T, xyChange = T)
+      └─| smz.(diamonds[1:2], this = 2, pareto = T)
+• Box plot
+      └─| box2.(iris, rot = 20, pareto = T, cut = T)
+      └─| box2.(diamonds[1:1000, 1:3], mark = 'color')
+      └─| box2.(id2y.(diamonds[1:1000, 1:3]))
+      └─| box2.(case2.(us_rent_income[5], div = 100), col = 0)
+      └─| box2.(time2.(economics[1:50, ], div = 'year'))
+• Stats
+      └─| stats.(iris, transpose = F, split = T)
+      └─| smry.(iris, .f = 'sd(x) / mean(x)')
+      └─| table.(diamonds[2:4])
+      └─| html.(starwars)
+", paste0(rep('\u2583', 70), collapse = ''), '\n\n'
+)
 
 if (interactive()) cat(tips)
 
