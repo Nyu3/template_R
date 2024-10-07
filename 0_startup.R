@@ -35,14 +35,15 @@ query_lib. <- function(package_name, ...) {
 # query_lib.(formattable, 'scico')  # mix of variable & string
 }
 
-## Return strings even you write it as an object == (2024-07-12) ========================
-lazy_name. <- function(x, ...) {
-  if (is.null(x)) return(NULL)
-  if (is.null(substitute(x))) return(NULL)
-  if (!exists(substitute(x))) x <- as.character(substitute(x))
-  if (!is.character(x) && !is.factor(x)) stop('Not an available character...\n\n', call. = F)
-  return(x)
-# lazy_name.(nya)
+## Return strings even you write it as an object == (2024-07-19) ========================
+lazy_name. <- function(x, ...) {  # NSE (Non Standard Estimation)
+  tmp <- substitute(x)
+  if (is.null(tmp) || exists(tmp)) {
+    return(NULL)
+  } else {
+    return(as.character(tmp))
+  }
+# lazy_name.(abc)  lazy_name.('abc')  lazy_name.(NULL)  nyal <- NULL; lazy_name.(nyal)
 }
 
 
@@ -388,90 +389,97 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
 }  # END of pp.()
 
 
-## Turn Sdorpion csv data into tidy one == (2024-07-17) ========================
+## Turn Sdorpion csv data into tidy one == (2024-10-07) ========================
 pk. <- function(excel = T, ...) {
   tmp <- pp.()
   if (!any(str_detect(names(tmp), 'フェレ径'))) stop('Be sure to copy Sdorpion data...\n\n', call. = F)
+  if (!any(str_detect(names(tmp), 'タグ1'))) {  # source from Grafana
+    tmp2 <- tmp[-1]
+  } else {  # source from raw_data in Scorpion
+    ## calibration (ruler length by pixel = 104, real vs SEM ratio by 0.1 mm scale = 0.9486)
+    cali <- function(magnification) (9954 * magnification ^ (-0.9994) - 0.007076) / 104 * 0.9486
 
-  ## remove lot or remark info from tag1~4 column; eg) ['123456-07' 'G13' '12345' '1300]
-  chr_trim <- function(x, get_chr = T) {
-    tmpx <- gsub("\\[\'|\\'\\]", '', x) %>%
-            str_split("\\' \\'") %>% {
-              if (get_chr == TRUE) {  # chr: type, size; eg) 6-12, 140/170
-                map_chr(., ~ .x %>% {
-                  .[str_detect(., '-') | str_detect(., '/') | str_detect(., '\\#') | str_detect(., '[:alpha:]')][1]
-                })
-              } else {  # num: ID, magnification
-                map_chr(., ~ .x %>% {.[!str_detect(., '-') & !str_detect(., '[:alpha:]')][1]})
+    ## remove lot or remark info from tag1~4 column; eg) ['123456-07' 'G13' '12345' '1300]
+    chr_trim <- function(x, get_chr = T) {
+      tmpx <- gsub("\\[\'|\\'\\]", '', x) %>%
+              str_split("\\' \\'") %>% {
+                if (get_chr == TRUE) {  # chr: type, size; eg) 6-12, 140/170
+                  map_chr(., ~ .x %>% {
+                    .[str_detect(., '-') | str_detect(., '/') | str_detect(., '\\#') | str_detect(., '[:alpha:]')][1]
+                  })
+                } else {  # num: ID, magnification
+                  map_chr(., ~ .x %>% {.[!str_detect(., '-') & !str_detect(., '[:alpha:]')][1]})
+                }
               }
-            }
-    return(tmpx)
+      return(tmpx)
+    }
+
+    tmp2 <- tmp[-1, ] %>%
+            mutate(
+              タグ1 = chr_trim(タグ1, T),
+              タグ2 = chr_trim(タグ2, T),
+              タグ3 = chr_trim(タグ3, F),
+              タグ4 = chr_trim(タグ4, F),
+            ) %>%
+            set_names(unlist(tmp[1, ])) %>%
+            mutate(砥粒度 = str_c(tag1, ' (', tag2, ')'), 備考 = NA_character_) %>%
+            rename(砥粒名 := tag1, 粒度 := tag2, 粒度分布ID := tag3, SEM倍率 := tag4, 測定日 := date, lot := lot_no) %>%
+            relocate(測定日, .before = 砥粒名) %>%
+            relocate(備考, 砥粒度, .after = lot) %>%
+            hablar::retype() %>%
+            mutate(
+              面積 = area * cali(SEM倍率) ^ 2,
+              包絡面積 = convex_area * cali(SEM倍率) ^ 2,,
+              矩形面積 = boundingbox_area * cali(SEM倍率) ^ 2,,
+              周囲長 = perimeter * cali(SEM倍率),
+              包絡長 = convex_perimeter * cali(SEM倍率),
+              矩形短辺 = l_minor * cali(SEM倍率),
+              矩形長辺 = l_major * cali(SEM倍率),
+              粒径 = 矩形長辺,
+              平均軸径 = (矩形短辺 + 矩形長辺) / 2,
+              水平フェレ径 = feret_diameter_w * cali(SEM倍率),
+              鉛直フェレ径 = feret_diameter_h * cali(SEM倍率),
+              等価円周 = circle_equivalent_perimeter * cali(SEM倍率),
+              円相当径 = circle_equivalent_diameter * cali(SEM倍率),
+              最小外接円 = diameter_out * cali(SEM倍率),
+              最大内接円 = diameter_in * cali(SEM倍率),
+              フェレ径比 = feret_diameter_ratio,
+              アスペクト比 = aspect_ratio,
+              圧縮度 = compactness,
+              円径比 = 最大内接円 / 最小外接円,  # sphericity
+              針状度 = 1 -exp(-3 *abs(1 -圧縮度) *(1 -円径比) /アスペクト比),  # (圧縮度 / アスペクト比) / 2,  # acicularity
+              円形度 = circularity,
+              円形度2 = circularity2,
+              円形度3 = circularity3,
+              円磨度 = roundness,
+              包絡度 = convexity,
+              面積包絡度 = solidity,
+              矩形度 = rectangularity,
+              頂点数 = apex_n,
+              角度_平均 = angle_mean,
+              角度_標準偏差 = angle_sd,
+              角度_最小 = angle_min,
+              角度_最大 = angle_max,
+              角度_mmr = 角度_最小 / 角度_最大,
+              ## 1 - exp(-((角度_最大 + 角度_最大) / 2 / 角度_標準偏差) / 頂点数)  # (角度_平均 / 角度_標準偏差) / 頂点数
+              角度_変動係数 = 1 / (1 +exp(-3 *((角度_最小 +角度_最大) /2 /角度_標準偏差) /頂点数)) ^3,
+              ギザ度 = (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5,  # edge roughness
+              内接モコ度 = (pi * 最大内接円) / 周囲長,  # aka., roughness
+              外接モコ度 = 周囲長 / (pi * 最小外接円),
+              内面モコ度 = (pi * 最大内接円 ^2 / 4) / 周囲長,
+              外面モコ度 = 周囲長 / (pi * 最小外接円 ^2 / 4),
+              ## Vertex Boundary Angularity; not an abbraviation of beaver
+              VBA = (1 - 針状度) * 角度_変動係数 * 外接モコ度,
+              ギアmodule = pi *(最小外接円 + 最大内接円) /2 /頂点数,  # pi*円相当径/頂点数  pi*包絡長/頂点数
+              ギア突出量 = (最小外接円 - 最大内接円) /2,  # (周囲長 - 包絡長) /頂点数  円相当径
+              ギア元幅 = ギア突出量 *(1 + 2 /tan((1 -(角度_最小 +角度_最大) /2 /180) *pi)),  # 角度_平均
+              ## ルイスの式: 歯先に働く力 = 歯型係数*歯元応力*基準円*歯幅 ~ k*基準円*歯幅 = k*(π*モジュール)*歯幅 ~ モジュール*歯幅
+              MVP = log10(ギアmodule * ギア元幅)  # モジュール*歯幅; Momentum of vertex points
+            # 座標 = apex_xy
+            ) %>%
+            relocate(VBA, MVP, 粒径, .before = 面積) %>%
+            select(-area:-apex_xy)
   }
-
-  tmp2 <- tmp[-1, ] %>%
-          mutate(
-            タグ1 = chr_trim(タグ1, T),
-            タグ2 = chr_trim(タグ2, T),
-            タグ3 = chr_trim(タグ3, F),
-            タグ4 = chr_trim(タグ4, F),
-          ) %>%
-          set_names(unlist(tmp[1, ])) %>%
-          mutate(砥粒度 = str_c(tag1, ' (', tag2, ')')) %>%
-          rename(砥粒種 := tag1, 粒度 := tag2, ID := tag3, 倍率 := tag4, lot := lot_no) %>%
-          relocate(砥粒度, .after = 粒度) %>%
-          hablar::retype() %>%
-          mutate(
-            面積 = area / (倍率 / 100) ^ 2,
-            包絡面積 = convex_area / (倍率 / 100) ^ 2,
-            矩形面積 = boundingbox_area / (倍率 / 100) ^ 2,
-            周囲長 = perimeter / (倍率 / 100),
-            包絡長 = convex_perimeter / (倍率 / 100),
-            矩形短辺 = l_minor / (倍率 / 100),
-            矩形長辺 = l_major / (倍率 / 100),
-            平均軸径 = (矩形短辺 + 矩形長辺) / 2,
-            水平フェレ径 = feret_diameter_w / (倍率 / 100),
-            鉛直フェレ径 = feret_diameter_h / (倍率 / 100),
-            等価円周 = circle_equivalent_perimeter / (倍率 / 100),
-            円相当径 = circle_equivalent_diameter / (倍率 / 100),
-            最小外接円 = diameter_out / (倍率 / 100),
-            最大内接円 = diameter_in / (倍率 / 100),
-            フェレ径比 = feret_diameter_ratio,
-            アスペクト比 = aspect_ratio,
-            圧縮度 = compactness,
-            円径比 = 最大内接円 / 最小外接円,  # sphericity
-            針状度 = 1 -exp(-3 *abs(1 -圧縮度) *(1 -円径比) /アスペクト比),  # (圧縮度 / アスペクト比) / 2,  # acicularity
-            円形度 = circularity,
-            円形度2 = circularity2,
-            円形度3 = circularity3,
-            円磨度 = roundness,
-            包絡度 = convexity,
-            面積包絡度 = solidity,
-            矩形度 = rectangularity,
-            頂点数 = apex_n,
-            角度_平均 = angle_mean,
-            角度_標準偏差 = angle_sd,
-            角度_最小 = angle_min,
-            角度_最大 = angle_max,
-            角度_mmr = 角度_最小 / 角度_最大,
-            ## 1 - exp(-((角度_最大 + 角度_最大) / 2 / 角度_標準偏差) / 頂点数)  # (角度_平均 / 角度_標準偏差) / 頂点数
-            角度_変動係数 = 1 / (1 +exp(-3 *((角度_最小 +角度_最大) /2 /角度_標準偏差) /頂点数)) ^3,
-            ギザ度 =  (包絡度 / 面積包絡度) * (円磨度 / 円形度) -0.5,  # edge roughness
-            内接モコ度 = (pi * 最大内接円) / 周囲長,  # aka., roughness
-            外接モコ度 = 周囲長 / (pi * 最小外接円),
-            内面モコ度 = (pi * 最大内接円 ^2 / 4) / 周囲長,
-            外面モコ度 = 周囲長 / (pi * 最小外接円 ^2 / 4),
-            ## Vertex Boundary Angularity; not an abbraviation of beaver
-            VBA = (1 - 針状度) * 角度_変動係数 * 外接モコ度,
-            ギアmodule = pi *(最小外接円 + 最大内接円) /2 /頂点数,  # pi*円相当径/頂点数  pi*包絡長/頂点数
-            ギア突出量 = (最小外接円 - 最大内接円) /2,  # (周囲長 - 包絡長) /頂点数  円相当径
-            ギア元幅 = ギア突出量 *(1 + 2 /tan((1 -(角度_最小 +角度_最大) /2 /180) *pi)),  # 角度_平均
-            ## ルイスの式: 歯先に働く力 = 歯型係数*歯元応力*基準円*歯幅 ~ k*基準円*歯幅 = k*(π*モジュール)*歯幅 ~ モジュール*歯幅
-            MVP = log10(ギアmodule * ギア元幅)  # モジュール*歯幅; Momentum of vertex points
-          # 座標 = apex_xy
-          ) %>%
-          relocate(VBA, MVP, .before = 面積) %>%
-          select(-area:-apex_xy)
-
 
   ## summarise function
   transdata <- function(tmpx) {
@@ -493,7 +501,7 @@ pk. <- function(excel = T, ...) {
 
   ## separate data into IDs & shape data
   ## lot variation
-  tmp_lot <- tmp2 %>% select(-c(砥粒種, 粒度, 倍率, date)) %>% group_by(砥粒度, lot, ID)
+  tmp_lot <- tmp2 %>% select(-c(砥粒名, 粒度, SEM倍率, 測定日, 備考)) %>% group_by(砥粒度, lot, 粒度分布ID)
   ids <- tmp_lot %>% tally() %>% ungroup()
   dats <- tmp_lot %>% group_map(~ transdata(.))
   out_lot <- bind_rows(
@@ -505,12 +513,13 @@ pk. <- function(excel = T, ...) {
                bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
                bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'median'))
              ) %>%
-             mutate(砥粒種 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
-             mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒種) %>%
+             mutate(砥粒名 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
+             mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒名) %>%
+             relocate(砥粒度, .before = VBA) %>%
              arrange(砥粒度, lot)
 
   ## type variation
-  tmp_type <- tmp2 %>% select(-c(砥粒種, 粒度, 倍率, date, lot, ID)) %>% group_by(砥粒度)
+  tmp_type <- tmp2 %>% select(-c(砥粒名, 粒度, SEM倍率, 測定日, lot, 粒度分布ID)) %>% group_by(砥粒度)
   id2 <- tmp_type %>% tally() %>% ungroup()
   dat2 <- tmp_type %>% group_map(~ transdata(.))
   out_type <- bind_rows(
@@ -522,8 +531,8 @@ pk. <- function(excel = T, ...) {
                 bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
                 bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median'))
               ) %>%
-              mutate(砥粒種 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
-              mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒種) %>%
+              mutate(砥粒名 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
+              mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒名) %>%
               arrange(砥粒度)
 
   ## summary
@@ -533,6 +542,7 @@ pk. <- function(excel = T, ...) {
   }
   return(tmp2)  # raw data
 }
+
 
 ## Pick Sdorpion csv data in your folder and make them together tidy one == (2024-07-17) ========================
 pk2. <- function(excel = T, ...) {
@@ -1369,14 +1379,14 @@ today2. <- function(chr = NULL, ...) {
 now2. <- function(...) now(tz = 'Asia/Tokyo') %>% gsub('-|:', '', .) %>% gsub (' ', '-', .) %>% str_sub(3, 13)
 
 
-## Save graphics == (2023-06-13) ========================
-save. <- function(name = NULL, type = 'jpg', wh = dev.size(), ...) {
+## Save graphics == (2024-09-11) ========================
+save. <- function(name = NULL, type = 'png', wh = dev.size(), ...) {
   saveN <- name %||% now2.()
-  if (type %in% c('jpg', 'jpeg', 'j')) {
+  if (as.character(substitute(type)) %in% c('jpg', 'jpeg', 'j')) {
     dev.copy(jpeg, file = str_c(saveN, '.jpg'), units = 'in', width = wh[1], height = wh[2], res = 150)
     dev.off()
   }
-  if (type %in% c('png', 'p')) {
+  if (as.character(substitute(type)) %in% c('png', 'p')) {
     dev.copy(png, file = str_c(saveN, '.png'), units = 'in', width = wh[1], height = wh[2], res = 350)
     dev.off()
   }
@@ -2189,9 +2199,9 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
 }
 
 
-## Clustering by probability ellipse == (2024-03-07) ========================
+## Clustering by probability ellipse == (2024-09-11) ========================
 ## [x,y,ID] preferable
-ellip. <- function(d, trim = c(0, 1), xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
+ellip. <- function(d, trim = c(0, 1), sel = NULL, xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
   query_lib.(ellipse, robustbase)
   ## data nesting
   d <- list2tibble.(d) %>%
@@ -2201,12 +2211,13 @@ ellip. <- function(d, trim = c(0, 1), xlim = NA, ylim = NA, el = T, name = NULL,
        dplyr::filter(map_dbl(.$data, nrow) > 0)
 
   if (map_lgl(d, ~ is.list(.)) %>% any() %>% `!`) stop('Use some data like [x,y,ID] ...\n\n', call. = F)
-  
+
   ## data alignment
   num_cols <- select_if(d, is.list) %>% unnest(data) %>% ncol()
   if (num_cols == 1) d <- d %>% mutate(data = map(data, ~ rowid_to_column(., var = 'ID')))
   if (num_cols > 2) cat('CAUTION: only 1st & 2nd numeric data are used.\n')
-  
+  if (!is.null(sel)) d <- n_cyc.(sel, n_max = nrow(d), len_max = nrow(d)) %>% d[., ]
+
   ## color
   if (is.character(col)) stop('Don\'t use color name like \'blue\'.  Use numbers 1 to 6\n\n', call. = F)
   d <- d %>% mutate(colpal = n_cyc.(col, 6, len_max = nrow(d)) %>%
@@ -2225,7 +2236,7 @@ ellip. <- function(d, trim = c(0, 1), xlim = NA, ylim = NA, el = T, name = NULL,
     Cnt <- try(robustbase::covMcd(xy, cor = T, alpha = 0.75)$center, silent = T)
     tmp <- try(robustbase::covMcd(xy, alpha = 0.75)$cov, silent = T)
     elli95 <- {if (nrow(xy) > 13 && !'try-error' %in% class(tmp)) tmp else cov(xy)} %>%
-              ellipse::ellipse(., centre = Cnt, level = 0.95, npoints = 200) %>%
+              ellipse::ellipse(., centre = Cnt, level = 0.90, npoints = 200) %>%
               as_tibble()
     return(elli95)
   }
@@ -3188,8 +3199,8 @@ polygon. <- function(d, col = 'grey95', ...) {
 }
 
 
-## Logarithm / Exponential approximation  == (2023-07-18) ========================
-fit_log <- function(d, xlab = NULL, ylab = NULL) {
+## Logarithm / Exponential approximation  == (2024-10-02) ========================
+fit_log. <- function(d, xlab = NULL, ylab = NULL) {
   if (is.data.frame(d) != T || ncol(d) != 2) stop('It\'s not two-column data ...\n\n', call. = F)
   d <- d %>% arrange(across(names(d)[1]))
   plt.(d, type = 'pp', xlab = xlab, ylab = ylab)
@@ -3228,18 +3239,80 @@ fit_log <- function(d, xlab = NULL, ylab = NULL) {
   mdls <- list(tmp_inv1, tmp_log2, tmp_log3, tmp_exp2, tmp_exp3)
   better_num <- map_dbl(mdls, ~ .$deviance) %>% which.min()
 
+  ## plot2
   if (c(2, 3) %in% better_num %>% any()) {
     xy <- mdls[[better_num]]$xy %>% mutate(y = exp(y))
   } else {
     xy <- mdls[[better_num]]$xy
   }
-  lines(xy, lty = 2, col = 'seagreen3')
-  cat('Approximation: ', c('Inverse','Logarithm','Logarithm','Exponential','Exponential')[better_num], 'approximation\n\n')
-  print(mdls[[better_num]]$model)
+  lines(xy, lty = 2, col = color2.(len = 1))
+
+  ## result message
+  cat(c('Inverse','Logarithm','Logarithm','Exponential','Exponential')[better_num], 'approximation\n\n')
+  function_text <- str_c('y = ', c('al / x', 'nu * x ^lam', 'nu * x ^lam + al', 'nu * x ^lam', 'nu * x ^lam +al')[better_num])
+  mdls[[better_num]]$model %>%
+  capture.output() %>%
+  str_c(., collapse = '\n') %>%
+  str_replace('y ~ eval\\(parse\\(text = fun_quasi\\)\\)', function_text) %>%
+  cat()
 
 # curve(8205.5 *x ^(-0.915), -1, 200, add = T, col='red')
 # curve(10267 *x ^(-0.99), -1, 200, add = T, col='seagreen3')
-# tibble(x=c(1.3,2.15,2.69,3.28,4.94,7.64,10.2,15,22,28.8,39.6,52.3,73.1,101,137,198),y=c(7,5,4,3,2,1.5,1,.75,.5,.4,.3,.2,.15,.1,.075,.05)*1000) %>% fit_log()
+# tibble(x=c(1.3,2.15,2.69,3.28,4.94,7.64,10.2,15,22,28.8,39.6,52.3,73.1,101,137,198),y=c(7,5,4,3,2,1.5,1,.75,.5,.4,.3,.2,.15,.1,.075,.05)*1000) %>% fit_log.()
+}
+
+
+## Chi-squared test  == (2024-09-13) ========================
+x2. <- function(d, col = 2, ...) {
+  query_lib.(corrplot)
+
+  if (is.data.frame(d) == FALSE) stop('Make the data with ONE column...\n\n', call. = F)
+  d <- hablar::retype(d) %>%
+       mutate_if(is.character, as.factor)
+  x_name <- names(d)[sapply(d, is.factor)]
+  y_name <- names(d)[sapply(d, is.numeric)]
+
+
+  chisq <- function(tmp0, txt = NULL, ...) {
+      tmp <- tmp0 %>% chisq.test(., correct = T)  # Yates' contiunity correction
+      print(tmp$observed)
+      print(tmp)
+
+      if (tmp$statistic == 0) return(cat('There is absolutely no relationship because p-value =', tmp$p.value, '\n\n'))
+      par(family = jL.(c(rownames(tmp$observed), colnames(tmp$observed))))
+      ## http://www.sthda.com/english/wiki/chi-square-test-of-independence-in-r
+      contrib <- round(100 * tmp$residuals ^2 / tmp$statistic, 1)  # contribution in percentate (%) = r2 / x2
+      corrplot::corrplot(contrib,
+                         is.cor = F,
+                         cl.pos = 'n',  # 'b'
+                         addCoef.col = 'grey65',
+                         tl.col = 'grey13',
+                         tl.cex = 0.8,
+                         tl.srt = 45,
+                         col = c('Oranges', 'Purples', 'Reds', 'Blues', 'Greens', 'Greys', 'OrRd', 'YlOrRd', 'YlOrBr', 'YlGn')[col] %>%
+                               corrplot::COL1(.)
+      )
+      mtext(side = 1, expression(paste('Contribution (%) for ', chi ^2, ' score')), cex = 1.3, line = par('mar')[1] - 1.5)
+      if (tmp$p.value > 0.05) cat(txt, 'There is no relationship.\n\n') else cat(txt, 'Significantly associated.\n\n')
+  }
+
+
+  ## Cross table
+  if (length(x_name) == 1) {
+    if (nrow(d) == n_distinct(d[x_name]) && all(sapply(d[y_name], is.integer)) == TRUE) {
+      tmp0 <- d %>%
+              column_to_rownames(x_name)
+      chisq(tmp0)
+    }
+  ## [chr1, chr2, chr3, ...]
+  } else if (length(x_name) > 1 && length(y_name) == 0) {
+    x_name2 <- if (length(x_name) == 2) x_name else choice.(x_name, note = 'Choose less than TWO X factors')[1:2]
+    tmp0 <- table(d[[x_name2[1]]], d[[x_name2[2]]])
+    chisq(tmp0, txt = str_c('Results of ', x_name2[1], ' vs ', x_name2[2], ': '))
+  } else {
+    stop('Needed table [level, y1, y2, ...] or data [level1, level2, level3, ...]...\n\n', call. = F)    
+  }
+# tibble(ID=LETTERS[1:3],n=c(40,30,7),y=c(30,20,5),a=c(6,10,5)) %>% x2.()  x2.(diamonds[2:4], rot = 0, col = 2)
 }
 
 
