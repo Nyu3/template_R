@@ -241,7 +241,7 @@ lazy_args. <- function(...) {
 }
 
 
-## Find whether quasi-time format or not == (2023-08-25) ========================
+## Find whether quasi-time format or not == (2024-10-09) ========================
 lazy_any. <- function(x, Fun = is.na, ...) {
   for (i in seq_along(x)) {
     if (!is.na(x[i])) {
@@ -261,12 +261,12 @@ is_time. <- function(x, ...) if (is.list(x)) map_lgl(x, ~ is.POSIXct(.) | is.Dat
 is_quasi_time. <- function(x, ...) {
   if (all(is.na(x)) || !is.character(x)) return(FALSE)
   x <- x[!is.na(x)]
-  tz_TF <- {stringr::str_count(x, ':') == 2 & str_detect(x, 'UTC|JST')} %>% any()
+  tz_TF <- {stringr::str_count(x, ':') == 2 & str_detect(x, 'UTC|JST|T|Z')} %>% any()
   digit_TF <- {str_detect(x, '[:digit:]') & !str_detect(x, '[:upper:]|[:lower:]') & !is.na(x)} %>% all()  # No alphabet
   chr1_TF <- {str_count(x, '/') == 2 | str_count(x, '-') == 2 & !str_count (x, '/|-') > 2 & !is.na(x)} %>% any()
   chr2_TF <- if (all(str_count(x, '-') != 2 | str_count(x, ' ') == 1)) TRUE else map_lgl(str_split(x, '-'), ~ .[1] %>% {str_length(.) == 4}) %>% any()
   return(!is.POSIXct(x) & !is.Date(x) & (tz_TF | (digit_TF & chr1_TF & chr2_TF)))
-# map_lgl(c('2019/1/8', '2019/1/8 12:34', '2019/1/8 12:34:56', '2019-11-14', '2019-11-14 12:34', '2019-11-14 12:34:56', '2023-08-15 11:45:00 JST', '123456-01-2'), is_quasi_time.)
+# map_lgl(c('2019/1/8', '2019/1/8 12:34', '2019/1/8 12:34:56', '2019-11-14', '2019-11-14 12:34', '2019-11-14 12:34:56', '2023-08-15 11:45:00 JST', '123456-01-2', '2023-08-02T00:00:00Z'), is_quasi_time.)
 }
 
 is_quasi_period. <- function(x, ...) {
@@ -389,12 +389,13 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
 }  # END of pp.()
 
 
-## Turn Sdorpion csv data into tidy one == (2024-10-07) ========================
+## Turn Sdorpion csv data into tidy one == (2024-10-21) ========================
 pk. <- function(excel = T, ...) {
   tmp <- pp.()
   if (!any(str_detect(names(tmp), 'フェレ径'))) stop('Be sure to copy Sdorpion data...\n\n', call. = F)
   if (!any(str_detect(names(tmp), 'タグ1'))) {  # source from Grafana
-    tmp2 <- tmp[-1]
+    tmp2 <- tmp[-1] %>%
+            mutate(粒度 = gsub('月', '-', 粒度) %>% gsub('日', '', .))
   } else {  # source from raw_data in Scorpion
     ## calibration (ruler length by pixel = 104, real vs SEM ratio by 0.1 mm scale = 0.9486)
     cali <- function(magnification) (9954 * magnification ^ (-0.9994) - 0.007076) / 104 * 0.9486
@@ -435,7 +436,7 @@ pk. <- function(excel = T, ...) {
               包絡長 = convex_perimeter * cali(SEM倍率),
               矩形短辺 = l_minor * cali(SEM倍率),
               矩形長辺 = l_major * cali(SEM倍率),
-              粒径 = 矩形長辺,
+              粒径 = sqrt(矩形短辺 ^2 + 矩形長辺 ^2),
               平均軸径 = (矩形短辺 + 矩形長辺) / 2,
               水平フェレ径 = feret_diameter_w * cali(SEM倍率),
               鉛直フェレ径 = feret_diameter_h * cali(SEM倍率),
@@ -519,25 +520,25 @@ pk. <- function(excel = T, ...) {
              arrange(砥粒度, lot)
 
   ## type variation
-  tmp_type <- tmp2 %>% select(-c(砥粒名, 粒度, SEM倍率, 測定日, lot, 粒度分布ID)) %>% group_by(砥粒度)
-  id2 <- tmp_type %>% tally() %>% ungroup()
-  dat2 <- tmp_type %>% group_map(~ transdata(.))
-  out_type <- bind_rows(
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'mean')),
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'trim_mean')),
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'proportional_mean')),
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'geometric_mean')),
-              # bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'harmonic_mean')),
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median'))
-              ) %>%
-              mutate(砥粒名 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
-              mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒名) %>%
-              arrange(砥粒度)
+# tmp_type <- tmp2 %>% select(-c(砥粒名, 粒度, SEM倍率, 測定日, 備考, lot, 粒度分布ID)) %>% group_by(砥粒度)
+# id2 <- tmp_type %>% tally() %>% ungroup()
+# dat2 <- tmp_type %>% group_map(~ transdata(.))
+# out_type <- bind_rows(
+#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'mean')),
+#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'trim_mean')),
+#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'proportional_mean')),
+#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'geometric_mean')),
+#             # bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'harmonic_mean')),
+#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
+#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median'))
+#             ) %>%
+#             mutate(砥粒名 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
+#             mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒名) %>%
+#             arrange(砥粒度)
 
   ## summary
   if (excel == TRUE) {
-    write2.(list(生データ = tmp2, ロット集計 = out_lot, 砥粒度de集計 = out_type))
+    write2.(list(生データ = tmp2, ロット集計 = out_lot))  #, 砥粒度de集計 = out_type))
     cat('\n    Shape factor data has been created on your Desktop...\n\n')
   }
   return(tmp2)  # raw data
