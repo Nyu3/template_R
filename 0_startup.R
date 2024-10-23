@@ -520,25 +520,25 @@ pk. <- function(excel = T, ...) {
              arrange(砥粒度, lot)
 
   ## type variation
-# tmp_type <- tmp2 %>% select(-c(砥粒名, 粒度, SEM倍率, 測定日, 備考, lot, 粒度分布ID)) %>% group_by(砥粒度)
-# id2 <- tmp_type %>% tally() %>% ungroup()
-# dat2 <- tmp_type %>% group_map(~ transdata(.))
-# out_type <- bind_rows(
-#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'mean')),
-#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'trim_mean')),
-#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'proportional_mean')),
-#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'geometric_mean')),
-#             # bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'harmonic_mean')),
-#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
-#               bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median'))
-#             ) %>%
-#             mutate(砥粒名 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
-#             mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒名) %>%
-#             arrange(砥粒度)
+  tmp_type <- tmp2 %>% select(-c(砥粒名, 粒度, SEM倍率, 測定日, 備考, lot, 粒度分布ID)) %>% group_by(砥粒度)
+  id2 <- tmp_type %>% tally() %>% ungroup()
+  dat2 <- tmp_type %>% group_map(~ transdata(.))
+  out_type <- bind_rows(
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'mean')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'trim_mean')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'proportional_mean')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'geometric_mean')),
+              # bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'harmonic_mean')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median'))
+              ) %>%
+              mutate(砥粒名 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
+              mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒名) %>%
+              arrange(砥粒度)
 
   ## summary
   if (excel == TRUE) {
-    write2.(list(生データ = tmp2, ロット集計 = out_lot))  #, 砥粒度de集計 = out_type))
+    write2.(list(生データ = tmp2, ロット集計 = out_lot) , 砥粒度de集計 = out_type))
     cat('\n    Shape factor data has been created on your Desktop...\n\n')
   }
   return(tmp2)  # raw data
@@ -1096,11 +1096,11 @@ zenk. <- function(chr, ...) {
 }
 
 
-## Reshape text by cutting space & common characters == (2022-10-19) ========================
+## Reshape text by cutting space & common characters == (2024-10-22) ========================
 correctChr. <- function(chr, ...) {
   if (str_detect(chr, '\\p{Hiragana}|\\p{Katakana}|\\p{Han}', negate = T) %>% any.()) {  # only for alphabet or number
     tf1 <- str_detect(chr, '%') %>% replace_na(replace = FALSE)
-    tf2 <- chr %>% {str_detect(., '[:digit:]') & str_detect(., ',')} %>% replace_na(replace = FALSE)
+    tf2 <- chr %>% {str_detect(., '[:digit:]') & str_detect(., ',') & !str_detect(., '-')} %>% replace_na(replace = FALSE)
     if (any.(tf1)) chr[tf1] <- chr[tf1] %>% as.vector() %>% parse_number(na = c('NA', '-')) %>% {. /100}  # '12.3%'
     if (any.(tf2)) chr[tf2] <- chr[tf2] %>% as.vector() %>% gsub(',', '', .)  # "123,456,789", or "\1,000"
   }
