@@ -497,7 +497,7 @@ pk. <- function(excel = T, ...) {
   # p95 <- summarise_all(tmpx, ~ percentile.(., 0.95)) %>% mutate(stats = 'p95', .before = VBA)
     sd2 <- summarise_all(tmpx, ~ sd2.(.)) %>% mutate(stats = 'robust_sd', .before = VBA) 
     ## transpose the data
-    out <- bind_rows(m1, m2, m3, m4, m5, m6)  # %>% t.()
+    out <- bind_rows(m1, m2, m3, m4, m5, m6, sd2)  # %>% t.()
     return(out)
   }
 
@@ -532,8 +532,8 @@ pk. <- function(excel = T, ...) {
                 bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'geometric_mean')),
               # bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'harmonic_mean')),
                 bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median'))
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'robust_sd')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median')),
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'robust_sd'))
               ) %>%
               mutate(砥粒名 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
               mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒名) %>%
