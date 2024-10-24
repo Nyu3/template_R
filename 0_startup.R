@@ -538,7 +538,7 @@ pk. <- function(excel = T, ...) {
 
   ## summary
   if (excel == TRUE) {
-    write2.(list(生データ = tmp2, ロット集計 = out_lot) , 砥粒度de集計 = out_type))
+    write2.(list(生データ = tmp2, ロット集計 = out_lot, 砥粒度de集計 = out_type))
     cat('\n    Shape factor data has been created on your Desktop...\n\n')
   }
   return(tmp2)  # raw data
