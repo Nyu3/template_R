@@ -512,7 +512,8 @@ pk. <- function(excel = T, ...) {
                bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'geometric_mean')),
              # bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'harmonic_mean')),
                bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
-               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'median'))
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'median')),
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'sd'))
              ) %>%
              mutate(砥粒名 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
              mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒名) %>%
@@ -530,7 +531,8 @@ pk. <- function(excel = T, ...) {
                 bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'geometric_mean')),
               # bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'harmonic_mean')),
                 bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'Hodeges-Lehmann_estimator')),
-                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median'))
+                bind_cols(id2, bind_rows(dat2) %>% dplyr::filter(stats == 'median')),
+               bind_cols(ids, bind_rows(dats) %>% dplyr::filter(stats == 'sd'))
               ) %>%
               mutate(砥粒名 = str_split_i(砥粒度, ' \\(', i = 1), .after = 砥粒度) %>%
               mutate(粒度 = str_split_i(砥粒度, ' \\(', i = 2) %>% gsub('\\)', '', .), .after = 砥粒名) %>%
