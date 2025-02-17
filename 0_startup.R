@@ -335,7 +335,7 @@ dt2time. <- function(d, timeSort = F, timeFactor = NULL, ...) {  # Use this by g
 }
 
 
-## Powerful copy & paste == (2024-05-22) ========================
+## Powerful copy & paste == (2024-11-05) ========================
 pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of column names {0, 1, 2, ...}
   query_lib.(hablar, stringdist)
   clip <- suppressWarnings(readr::clipboard()) %>%
@@ -383,13 +383,14 @@ pp. <- function(n = 1, vectorize = F, ...) {  # n: instruct a row limit of colum
        ) %>%
        dt2time.(timeSort = F) %>%
        mutate_if(is.character, correctChr.) %>%
+       mutate_if(is.character, str_trim) %>%
        hablar::retype() %>%
        select_if(colSums(is.na(.)) != nrow(.))
   return(d)
 }  # END of pp.()
 
 
-## Turn Sdorpion csv data into tidy one == (2024-10-24) ========================
+## Turn Sdorpion csv data into tidy one == (2025-02-17) ========================
 pk. <- function(excel = T, ...) {
   tmp <- pp.()
   if (!any(str_detect(names(tmp), 'フェレ径'))) stop('Be sure to copy Sdorpion data...\n\n', call. = F)
@@ -475,7 +476,7 @@ pk. <- function(excel = T, ...) {
               ギア突出量 = (最小外接円 - 最大内接円) /2,  # (周囲長 - 包絡長) /頂点数  円相当径
               ギア元幅 = ギア突出量 *(1 + 2 /tan((1 -(角度_最小 +角度_最大) /2 /180) *pi)),  # 角度_平均
               ## ルイスの式: 歯先に働く力 = 歯型係数*歯元応力*基準円*歯幅 ~ k*基準円*歯幅 = k*(π*モジュール)*歯幅 ~ モジュール*歯幅
-              MVP = log10(ギアmodule * ギア元幅)  # モジュール*歯幅; Momentum of vertex points
+              MVP = log10(1 + ギアmodule * ギア元幅)  # モジュール*歯幅; Momentum of vertex points  # マイナスを避けるためlog(1+x)形式に
             # 座標 = apex_xy
             ) %>%
             relocate(VBA, MVP, 粒径, .before = 面積) %>%
@@ -1045,8 +1046,9 @@ whichNear. <- function(vec, ref, back = F, value = F, ...) {
 whichSize. <- function(vec, ref, mirror, ...) whichNear.(vec, ref) %>% mirror[.]
 
 
-## Japanese or not for label & legend == (2023-09-27) ========================
+## Japanese or not for label & legend == (2024-10-30) ========================
 jL. <- function(chr, ...) {  # 'systemfonts'::system_fonts()$family %>% unique() %>% sort()
+  if (length(chr) != 1) chr <- chr[!is.na(chr)]
   os_type <- which(c('Darwin', 'Linux', 'Windows') %in% Sys.info()['sysname'])
   if (str_detect(class(chr), 'character|factor') %>% any()) {
     if (!exists('chr') || is.null(chr) || anyNA(chr)) return(c('Avenir Next', 'sans')[os_type])
@@ -1243,7 +1245,7 @@ colGra. <- function(d, color, ColorSteps = 13, ...) {
 }
 
 
-## Auto color assignment == (2023-10-30) ========================
+## Auto color assignment == (2024-12-01) ========================
 color2. <- function(col = NULL, len = NULL, ...) {
   query_lib.(RColorBrewer, scico, viridis, viridisLite)
   color_base <- c('grey13', 'firebrick1', 'deepskyblue4', 'antiquewhite3', 'sienna3', 'palevioletred3', 'seagreen4', 'dodgerblue3',
@@ -1290,6 +1292,14 @@ color2. <- function(col = NULL, len = NULL, ...) {
                  )
       rand <- floor(runif(1, min = 1, max = 1 + length(color3s)))
       out <- color3s[[rand]]
+    } else if (len == 4) {
+      color4s <- list(
+                   color_base[1:4],
+                   c('grey35', 'royalblue', 'darkseagreen4', 'palegreen2'),
+                   viridisLite::viridis(len +1, option = 'A')[-(len +1)]
+                 )
+      rand <- floor(runif(1, min = 1, max = 1 + length(color4s)))
+      out <- color4s[[rand]]
     } else if (len < 6) {
       out <- viridisLite::viridis(len +1, option = 'A')[-(len +1)]
     } else {
