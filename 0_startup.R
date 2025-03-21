@@ -747,7 +747,7 @@ xyL. <- function(d, type = 'xy', fix = 1, ...) {  # change data.frame into a set
 }
 
 
-## Transform [ID1,ID2,y] <--> [ID1, y1.ID2, y2.ID2, y3.ID2, ...] == (2022-05-09) ========================
+## Transform [ID1,ID2,y] <--> [ID1, y1.ID2, y2.ID2, y3.ID2, ...] == (2025-03-21) ========================
 id2y. <- function(d, ...) {  # ID: crush, y: vacuum
   tab_col <- map_lgl(d, ~ is.character(.) | is.factor(.)) %>% names(d)[.]
   num_col <- map_lgl(d, ~ is.numeric(.)) %>% names(d)[.]
@@ -759,7 +759,10 @@ id2y. <- function(d, ...) {  # ID: crush, y: vacuum
     out <- d %>%
            rowid_to_column('nya') %>%
            pivot_wider(names_from = all_of(tab_one), values_from = all_of(num_one)) %>%
-           select(!nya)
+           select(!nya) %>%
+           as.list() %>%
+           map(~ .[!is.na(.)]) %>%
+           list2tibble.()
     return(out)
   }
 # id2y.(iris[4:5])  id2y.(diamonds[1:3] %>% sample_n(1000)) %>% box2.
