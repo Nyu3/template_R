@@ -1258,8 +1258,9 @@ n_comp. <- function(nums, n_max, ...) {
 }
 
 
-## Creat translucent color == (2022-05-09) ========================
-col_tr. <- function(color, tr, ...) {
+## Creat translucent color == (2025-03-28) ========================
+col_tr. <- function(color = NULL, tr = 1, ...) {
+    if (is.null(color)) return()
     color <- color %>% ifelse(is.na(.) | . == 0, '#FFFFFF00', .)
     return(adjustcolor(color, alpha.f = tr))  # rgb(t(col2rgb(color) /255), max = 1, alpha = tr)
 }
@@ -3073,8 +3074,8 @@ smz. <- function(d, sel = NULL, pareto = F, this = NULL,  # this means the hight
     ## color assignment
     col_base <- '#4b4936'  # bar color: dark gray color2.(col, len = 3)
     col_sub <- 'lightgoldenrod2'  # point color: wasabi '#4b4936' light gray '#e3e1d6'
-    col_base2 <- if_else(is.null(col), '#f3981c', col_tr.(col, tr = 0.55))  # orange
-    col_sub2 <- if_else(is.null(col), '#ee7d50', col_tr.(col, tr = 0.75))
+    col_base2 <- ifelse(is.null(col), '#f3981c', col_tr.(col, tr = 0.55))  # orange
+    col_sub2 <- ifelse(is.null(col), '#ee7d50', col_tr.(col, tr = 0.75))
 
     col_bar <- rep(col_base, nrow(d))
     col_point <- rep(col_sub, nrow(d))
