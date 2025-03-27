@@ -2984,7 +2984,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
 }
 
 
-## Super mimizu: horizontal barplot == (2023-09-28) ========================
+## Super mimizu: horizontal barplot == (2025-03-27) ========================
 smz. <- function(d, sel = NULL, pareto = F, this = NULL,  # this means the hightlight No.
                    xlim = NA, ylim = NA, xlab = NULL, ylab = NULL, name = NULL, col = NULL, cex = NULL, PDF = T, ...) {
   query_lib.(berryFunctions)
@@ -3024,8 +3024,8 @@ smz. <- function(d, sel = NULL, pareto = F, this = NULL,  # this means the hight
   ## color assignment
   col_base <- '#4b4936'  # bar color: dark gray color2.(col, len = 3)
   col_sub <- 'lightgoldenrod2'  # point color: wasabi '#4b4936' light gray '#e3e1d6'
-  col_base2 <- '#f3981c'  # orange
-  col_sub2 <- '#ee7d50'
+  col_base2 <- if_else(is.null(col), '#f3981c', col_tr.(col, tr = 0.55))  # orange
+  col_sub2 <- if_else(is.null(col), '#ee7d50', col_tr.(col, tr = 0.75))
 
   col_bar <- rep(col_base, nrow(d))
   col_point <- rep(col_sub, nrow(d))
@@ -3089,7 +3089,7 @@ smz. <- function(d, sel = NULL, pareto = F, this = NULL,  # this means the hight
   plot_paint()
   if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
   gp.()
-# smz.(diamonds[1:2], this = 2, pareto = T)
+# smz.(diamonds[1:2], this = 2, col = 'seagreen3', pareto = T)
 }
 
 
