@@ -149,7 +149,7 @@ tips <- paste0("
 
 if (interactive()) cat(tips)
 
-remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'skip_messages', 'get_source', 'tips'))
+remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'skip_messages', 'tips'))
 
 ## END ##
 
