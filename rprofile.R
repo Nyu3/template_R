@@ -17,13 +17,14 @@ options(repos = structure(c(CRAN = 'https://ftp.yz.yamagata-u.ac.jp/pub/cran/'))
 pkgs_must <- c('bindrcpp', 'devtools', 'ellipse', 'formattable', 'hablar', 'logKDE', 'minpack.lm', 'naturalsort',
                'pracma', 'psych', 'robustbase', 'scico', 'tidyverse', 'viridis', 'writexl')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
+cat('a\n')
 if (sum(pkgs_lack) > 0) {
     for (i in which(pkgs_lack)) {
         cat(paste0('\n    trying to install ', pkgs_must[i], '...\n\n'))
         utils::install.packages(pkgs_must[i], dependencies = T)
     }
 }
-
+cat('b\n')
 
 ## Import while suppressing startup messages from defaultPackages and then invoke favorite packages == (2021-03-23) ========================
 ## https://stat.ethz.ch/pipermail/r-help/2013-July/356878.html
