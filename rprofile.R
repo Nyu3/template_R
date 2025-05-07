@@ -36,7 +36,7 @@ for (packs in c('tidyverse')) skip_messages(packs)  # Suppress annoying messages
 
 pkgs <- c('hablar', 'lubridate', 'readxl', 'tidyverse')  # Confirm called packages by search()
 options(defaultPackages = c(getOption('defaultPackages'), pkgs))  # Invoke
-
+cat('c\n')
 
 ## Fix the size of graphics device == (2021-03-22) ========================
 setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {    
@@ -44,7 +44,7 @@ setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
     if (Sys.info()['sysname'] == 'Linux') options(repr.plot.width = 4.5, repr.plot.height = 3.3)  # for JupyterLab; confirm by options()$bitmapType
     if (Sys.info()['sysname'] == 'Windows') grDevices::windows.options(width = 4.5, height = 3.3)  # for Windows
 })
-
+cat('d\n')
 
 ## Fix the default parameters for a graphical device == (2022-11-05) ========================
 ## https://stackoverflow.com/questions/48839319
@@ -61,7 +61,7 @@ setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
     }
     options(device = newDev)
 })
-
+cat('e\n')
 
 ## Rewrite other parameters of defalut values == (2021-08-17) ========================
 ## https://stackoverflow.com/questions/39620669/source-script-to-separate-environment-in-r-not-the-global-environment
@@ -78,13 +78,12 @@ library('minpack.lm', quietly = T)
 formals(nlsLM)$control <- nls.lm.control(maxiter = 1024, nprint = 0)  # nprint = 1 denotes to show results
 formals(source)$chdir <- TRUE  # if (R.Version()$major > 4) TRUE else FALSE
 formals(unlist)$use.names <- FALSE
-
+cat('f\n')
 
 ## Calling basic script == (2025-05-07) ========================
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
     sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
-  # options(showPackageStartupMessages = F)  # to suppress the 'utils' loading message
     library('stats')  # to suppress filter() conflict
     library('MASS')  # to suppress select() conflict
     library('tidyverse')
@@ -100,18 +99,18 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
     })
 }
 attach(.nya0env)  # Confirm by ls('.nya0env') and search()
-
+cat('g\n')
 
 ## Font registeration == (2021-03-24) ========================
 ## https://ill-identified.hatenablog.com/entry/2020/10/03/200618
 ## https://taken.jp/font-family-name-english-japanese.html
 if (.Platform$'OS.type' == 'windows') windowsFonts(`Yu Gothic` = windowsFont('Yu Gothic'))
-
+cat('h\n')
 
 ## Move to casual space == (2025-03-21) ========================
 if (Sys.info()['sysname'] == 'Darwin') setwd('~/Desktop')  # The directory anywhere you click ~.R file gives priority to this command
 if (Sys.info()['sysname'] == 'Windows') setwd(file.path(Sys.getenv('USERPROFILE'), 'Desktop'))
-
+cat('i\n')
 
 ## Hint message & delete objects == (2025-03-28) ========================
 tips <- paste0("
@@ -146,10 +145,10 @@ tips <- paste0("
     └─| html.(starwars)
 ", paste0(rep('\u2583', 70), collapse = ''), '\n\n'
 )
-
+cat('j\n')
 if (interactive()) cat(tips)
 
-remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'skip_messages', 'pkgs', 'tips'))
+remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'skip_messages', 'tips'))
 
 ## END ##
 
