@@ -80,21 +80,15 @@ formals(source)$chdir <- TRUE  # if (R.Version()$major > 4) TRUE else FALSE
 formals(unlist)$use.names <- FALSE
 
 
-## Access permission names == (2022-05-19) ========================
-heavy_usernames <- c('y-nishino', 'c-nakagawa', 'Microtrac', 't-hayakawa', '')  # '' is assigned to Mac & Ubuntu
-light_usernames <- c('john-doe')  # a subject for an experiment by readqadiv13
-yourname <- Sys.getenv('USERNAME')
-
-
-## Calling basic script == (2023-06-13) ========================
+## Calling basic script == (2025-05-07) ========================
 if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
     sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {  # for Windows or JupyterLab in Ubuntu
-# options(showPackageStartupMessages = F)  # to suppress the 'utils' loading message
+  # options(showPackageStartupMessages = F)  # to suppress the 'utils' loading message
     library('stats')  # to suppress filter() conflict
     library('MASS')  # to suppress select() conflict
     library('tidyverse')
-# library('utils', quietly = T)  # to use pipe
+  # library('utils', quietly = T)  # to use pipe
     get_source <- function(url_no = 1, file_no = 1) {
         git_url <- file.path('https://github.com', c('Nyu3/template_R/blob/master',
                                                      'Nyu3/psd_R/blob/master',
@@ -105,14 +99,9 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
         script <- readLines(filePATH, encoding = 'UTF-8')
         eval(parse(text = script), envir = .nya0env)
     }
-
-    if (any(grepl(yourname, heavy_usernames))) {  # for heavy users (Win & JupyterLab)
-        purrr::walk2(.x = c(1,2,2,2), .y = 1:4, ~ get_source(url_no = .x, file_no = .y))
-    } else if (yourname %in% light_usernames) {  # for light & PSD Win-users
-        purrr::walk2(c(1,2,2,2), 1:4, ~ get_source(url_no = .x, file_no = .y))  # c(3,3,3,3) --> readqadiv13/...
-    } else {  # Only use of '0_startup.R'
-        get_source()
-    }
+    purrr::walk2(.x = c(1,2,2,2), .y = 1:4, ~ get_source(url_no = .x, file_no = .y))
+    ## For light users 
+  # get_source()  # Only use of '0_startup.R'
     remove('get_source')
 }
 attach(.nya0env)  # Confirm by ls('.nya0env') and search()
