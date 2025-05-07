@@ -78,10 +78,11 @@ library('minpack.lm', quietly = T)
 formals(nlsLM)$control <- nls.lm.control(maxiter = 1024, nprint = 0)  # nprint = 1 denotes to show results
 formals(source)$chdir <- TRUE  # if (R.Version()$major > 4) TRUE else FALSE
 formals(unlist)$use.names <- FALSE
-cat('f\n')
+
 
 ## Calling basic script == (2025-05-07) ========================
-if (Sys.info()['sysname'] == 'Darwin') {
+# yourname <- Sys.info()['user']
+if (Sys.info()['sysname'] == 'Darwin' && grepl(pattern = 'y-n', Sys.info()['user'])) {
     ## for Mac
     sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R', '0_startup.R'), envir = .nya0env, chdir = F)
 } else {
@@ -96,7 +97,7 @@ if (Sys.info()['sysname'] == 'Darwin') {
     })
 }
 attach(.nya0env)  # Confirm by ls('.nya0env') and search()
-cat('g\n')
+
 
 ## Font registeration == (2021-03-24) ========================
 ## https://ill-identified.hatenablog.com/entry/2020/10/03/200618
