@@ -89,35 +89,15 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
     library('MASS')  # to suppress select() conflict
     library('tidyverse')
   # library('utils', quietly = T)  # to use pipe
-    get_source <- function(url_no = 1, file_no = 1) {
-        git_url <- file.path('https://github.com', c('Nyu3/template_R/blob/master',
-                                                     'Nyu3/psd_R/blob/master')
-                   )[url_no]
-        git_file <- c('0_startup.R', 'PSD_archive.R', 'PSD_archive_generator.R', 'PSD_simulator.R')[file_no]
-        filePATH <- paste0(file.path(git_url, git_file), '?raw=TRUE')
-        script <- readLines(filePATH, encoding = 'UTF-8')
+
+    git_url <- c(
+        paste0('https://raw.githubusercontent.com/Nyu3/template_R/refs/heads/master/', '0_startup.R'),
+        paste0('https://raw.githubusercontent.com/Nyu3/psd_R/refs/heads/master/', c('PSD_archive.R', 'PSD_archive_generator.R', 'PSD_simulator.R'))
+    )
+    walk(git_url, function(x) {
+        script <- readLines(x, encoding = 'UTF-8')
         eval(parse(text = script), envir = .nya0env)
-    }
-  # purrr::walk2(.x = c(1,2,2,2), .y = 1:4, ~ get_source(url_no = .x, file_no = .y))
-    ## For light users 
-  # get_source()  # Only use of '0_startup.R'
-    git_url <- file.path('https://github.com', 'Nyu3/template_R/blob/master', '0_startup.R', '?raw=TRUE')
-    script <- readLines(git_url, encoding = 'UTF-8')
-    eval(parse(text = script), envir = .nya0env)
-
-    git_url <- file.path('https://github.com', 'Nyu3/psd_R/blob/master', 'PSD_archive.R', '?raw=TRUE')
-    script <- readLines(git_url, encoding = 'UTF-8')
-    eval(parse(text = script), envir = .nya0env)
-
-    git_url <- file.path('https://github.com', 'Nyu3/psd_R/blob/master', 'PSD_archive_generator.R', '?raw=TRUE')
-    script <- readLines(git_url, encoding = 'UTF-8')
-    eval(parse(text = script), envir = .nya0env)
-
-    git_url <- file.path('https://github.com', 'Nyu3/psd_R/blob/master', 'PSD_simulator.R', '?raw=TRUE')
-    script <- readLines(git_url, encoding = 'UTF-8')
-    eval(parse(text = script), envir = .nya0env)
-
-    remove('get_source')
+    })
 }
 attach(.nya0env)  # Confirm by ls('.nya0env') and search()
 
@@ -169,7 +149,7 @@ tips <- paste0("
 
 if (interactive()) cat(tips)
 
-remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'heavy_usernames', 'light_usernames', 'skip_messages', 'tips', 'yourname'))
+remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'skip_messages', 'get_source', 'tips'))
 
 ## END ##
 
