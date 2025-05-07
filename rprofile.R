@@ -12,16 +12,15 @@
 if (interactive()) cat('|██████████████| Now loading |█████████████|\n')
 
 
-## Install vital packages if necessary == (2024-07-04) ========================
+## Install vital packages if necessary == (2025-05-07) ========================
 options(repos = structure(c(CRAN = 'https://ftp.yz.yamagata-u.ac.jp/pub/cran/')))
 pkgs_must <- c('bindrcpp', 'devtools', 'ellipse', 'formattable', 'hablar', 'logKDE', 'minpack.lm', 'naturalsort',
                'pracma', 'psych', 'robustbase', 'scico', 'tidyverse', 'viridis', 'writexl')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
 if (sum(pkgs_lack) > 0) {
-    options(showPackageStartupMessages = F)
-    for (i in seq_along(which(pkgs_lack))) {
-        cat(paste0('\n    trying to install ', pkgs_must[pkgs_lack], '...\n\n'))
-        utils::install.packages(pkgs_must[pkgs_lack][i], dependencies = T)
+    for (i in which(pkgs_lack)) {
+        cat(paste0('\n    trying to install ', pkgs_must[i], '...\n\n'))
+        utils::install.packages(pkgs_must[i], dependencies = T)
     }
 }
 
@@ -149,7 +148,7 @@ tips <- paste0("
 
 if (interactive()) cat(tips)
 
-remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'skip_messages', 'tips'))
+remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'skip_messages', 'pkgs', 'tips'))
 
 ## END ##
 
