@@ -81,14 +81,11 @@ formals(unlist)$use.names <- FALSE
 cat('f\n')
 
 ## Calling basic script == (2025-05-07) ========================
-if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
+if (Sys.info()['sysname'] == 'Darwin') {
+    ## for Mac
     sys.source(file.path('~/Library/Mobile Documents/com~apple~CloudDocs/R', '0_startup.R'), envir = .nya0env, chdir = F)
-} else {  # for Windows or JupyterLab in Ubuntu
-    library('stats')  # to suppress filter() conflict
-    library('MASS')  # to suppress select() conflict
-    library('tidyverse')
-    library('utils', quietly = T)  # to use pipe
-
+} else {
+    ## for Windows or JupyterLab in Ubuntu
     git_url <- c(
         paste0('https://raw.githubusercontent.com/Nyu3/template_R/refs/heads/master/', '0_startup.R'),
         paste0('https://raw.githubusercontent.com/Nyu3/psd_R/refs/heads/master/', c('PSD_archive.R', 'PSD_archive_generator.R', 'PSD_simulator.R'))
