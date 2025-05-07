@@ -17,14 +17,14 @@ options(repos = structure(c(CRAN = 'https://ftp.yz.yamagata-u.ac.jp/pub/cran/'))
 pkgs_must <- c('bindrcpp', 'devtools', 'ellipse', 'formattable', 'hablar', 'logKDE', 'minpack.lm', 'naturalsort',
                'pracma', 'psych', 'robustbase', 'scico', 'tidyverse', 'viridis', 'writexl')
 pkgs_lack <- !pkgs_must %in% rownames(utils::installed.packages())
-cat('a\n')
+
 if (sum(pkgs_lack) > 0) {
     for (i in which(pkgs_lack)) {
         cat(paste0('\n    trying to install ', pkgs_must[i], '...\n\n'))
         utils::install.packages(pkgs_must[i], dependencies = T)
     }
 }
-cat('b\n')
+
 
 ## Import while suppressing startup messages from defaultPackages and then invoke favorite packages == (2021-03-23) ========================
 ## https://stat.ethz.ch/pipermail/r-help/2013-July/356878.html
@@ -36,7 +36,7 @@ for (packs in c('tidyverse')) skip_messages(packs)  # Suppress annoying messages
 
 pkgs <- c('hablar', 'lubridate', 'readxl', 'tidyverse')  # Confirm called packages by search()
 options(defaultPackages = c(getOption('defaultPackages'), pkgs))  # Invoke
-cat('c\n')
+
 
 ## Fix the size of graphics device == (2021-03-22) ========================
 setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {    
@@ -44,7 +44,7 @@ setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
     if (Sys.info()['sysname'] == 'Linux') options(repr.plot.width = 4.5, repr.plot.height = 3.3)  # for JupyterLab; confirm by options()$bitmapType
     if (Sys.info()['sysname'] == 'Windows') grDevices::windows.options(width = 4.5, height = 3.3)  # for Windows
 })
-cat('d\n')
+
 
 ## Fix the default parameters for a graphical device == (2022-11-05) ========================
 ## https://stackoverflow.com/questions/48839319
@@ -61,7 +61,7 @@ setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
     }
     options(device = newDev)
 })
-cat('e\n')
+
 
 ## Rewrite other parameters of defalut values == (2021-08-17) ========================
 ## https://stackoverflow.com/questions/39620669/source-script-to-separate-environment-in-r-not-the-global-environment
@@ -87,13 +87,13 @@ if (Sys.info()['sysname'] == 'Darwin') {  # for Mac
     library('stats')  # to suppress filter() conflict
     library('MASS')  # to suppress select() conflict
     library('tidyverse')
-  # library('utils', quietly = T)  # to use pipe
+    library('utils', quietly = T)  # to use pipe
 
     git_url <- c(
         paste0('https://raw.githubusercontent.com/Nyu3/template_R/refs/heads/master/', '0_startup.R'),
         paste0('https://raw.githubusercontent.com/Nyu3/psd_R/refs/heads/master/', c('PSD_archive.R', 'PSD_archive_generator.R', 'PSD_simulator.R'))
     )
-    walk(git_url, function(x) {
+    purrr::walk(git_url, function(x) {
         script <- readLines(x, encoding = 'UTF-8')
         eval(parse(text = script), envir = .nya0env)
     })
@@ -105,12 +105,12 @@ cat('g\n')
 ## https://ill-identified.hatenablog.com/entry/2020/10/03/200618
 ## https://taken.jp/font-family-name-english-japanese.html
 if (.Platform$'OS.type' == 'windows') windowsFonts(`Yu Gothic` = windowsFont('Yu Gothic'))
-cat('h\n')
+
 
 ## Move to casual space == (2025-03-21) ========================
 if (Sys.info()['sysname'] == 'Darwin') setwd('~/Desktop')  # The directory anywhere you click ~.R file gives priority to this command
 if (Sys.info()['sysname'] == 'Windows') setwd(file.path(Sys.getenv('USERPROFILE'), 'Desktop'))
-cat('i\n')
+
 
 ## Hint message & delete objects == (2025-03-28) ========================
 tips <- paste0("
@@ -145,7 +145,7 @@ tips <- paste0("
     └─| html.(starwars)
 ", paste0(rep('\u2583', 70), collapse = ''), '\n\n'
 )
-cat('j\n')
+
 if (interactive()) cat(tips)
 
 remove(list = c('packs', 'pkgs', 'pkgs_lack', 'pkgs_must', 'skip_messages', 'tips'))
