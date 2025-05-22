@@ -687,8 +687,8 @@ list2tibble. <- function(dL, ord = F, ...) {
 }
 
 
-## Transform any data to list == (2021-08-21) ========================
-dLformer. <- function(d, ord = F, ...) {  # ord = T/F, or desirable order like c(3, 4, 1, 2) accoding to the list's names
+## Transform any data to list == (2025-05-16) ========================
+dLformer. <- function(d, sel = NULL, ...) {  # natural order with 1st priority and then sel like c(3, 4, 1, 2) accoding to the list's names
     query_lib.(naturalsort)
     if (is.atomic(d)){
         dL <- tibble(d) %>% list()
@@ -724,14 +724,13 @@ dLformer. <- function(d, ord = F, ...) {  # ord = T/F, or desirable order like c
     }
 
     ## Re-order
-    if (is.numeric(ord)) {
-        if (length(ord) != length(dL)) stop('ord does NOT match the length of the data...\n\n', call. = F)
-        dL <- dL[ord]
-    } else if (ord == TRUE) {
-        dL <- dL[naturalsort::naturalorder(names(dL))]
+    if (is.null(sel)) {
+        out <- dL[naturalsort::naturalorder(names(dL))]
+    } else {
+        out <- dL[n_comp.(sel, length(dL))]
     }
-    return(dL)
-# dLformer.(iris[1])  dLformer.(iris[4:5])  dLformer.(iris[3:5])
+    return(out)
+# dLformer.(iris[4:5])  names(dLformer.(iris, sel = c(3,1)))  names(iris)
 }
 
 
@@ -1130,10 +1129,10 @@ zenk. <- function(chr, ...) {
 }
 
 
-## Reshape text by cutting space & common characters == (2024-10-22) ========================
+## Reshape text by cutting space & common characters == (2025-05-22) ========================
 correctChr. <- function(chr, ...) {
     if (str_detect(chr, '\\p{Hiragana}|\\p{Katakana}|\\p{Han}', negate = T) %>% any.()) {  # only for alphabet or number
-        tf1 <- str_detect(chr, '%') %>% replace_na(replace = FALSE)
+        tf1 <- str_detect(chr, '^\\s*(-?\\d+(\\.\\d*)?)\\s*%\\s*$') %>% replace_na(replace = FALSE)  # detect %
         tf2 <- chr %>% {str_detect(., '[:digit:]') & str_detect(., ',') & !str_detect(., '-')} %>% replace_na(replace = FALSE)
         if (any.(tf1)) chr[tf1] <- chr[tf1] %>% as.vector() %>% parse_number(na = c('NA', '-')) %>% {. /100}  # '12.3%'
         if (any.(tf2)) chr[tf2] <- chr[tf2] %>% as.vector() %>% gsub(',', '', .)  # "123,456,789", or "\1,000"
@@ -1141,6 +1140,7 @@ correctChr. <- function(chr, ...) {
     out <- str_replace_all(chr, '#DIV/0!|#NAME\\?|\\bNA\\b|#N/A|NA\\?|\\bNULL\\b|#NULL!|#NUM!|#REF!|#VALUE!', NA_character_) %>%
            zenk.(chr)  # \\b means boundary
     return(out)
+# correctChr.(c('12.3%', '12.3vol%'))
 }
 
 
@@ -1248,13 +1248,17 @@ n_cyc. <- function(num, n_max, len_max = NULL, ...) {
 }
 
 
-## Number complement if the input is short of all numbers for the argument 'sel' of plt.() == (2023-07-30) ========================
+## Number complement if the input is short/long of all numbers for the argument 'sel' of plt.() == (2025-05-15) ========================
 n_comp. <- function(nums, n_max, ...) {
-    nums <- map_dbl(nums[!is.na(nums)], ~ .x %% n_max %>% ifelse(. != 0, ., n_max))
+  # num2 <- map_dbl(nums[!is.na(nums)], ~ .x %% n_max %>% ifelse(. != 0, ., n_max))
+    nums <- nums %||% NA
+    num2 <- nums[!is.na(nums) & between(nums, 1, n_max)] %>%
+            unique()
     n_seq <- seq(n_max)
-    out <- c(nums, n_seq[!n_seq %in% nums])
+    out <- c(num2, n_seq[!n_seq %in% num2]) %>%
+           .[1:n_max]
     return(out)
-# n_comp.(13, 5)  n_comp.(3:1, 5)  n_comp.(c(1, NA, 9), 5)
+# n_comp.(13, 5)  n_comp.(3:1, 5)  n_comp.(6:1, 5)  n_comp.(NULL, 5)  n_comp.(F, 5)  n_comp.(c(1,NA,9,6,-1,4,4), 5)
 }
 
 
@@ -1382,7 +1386,7 @@ legeX. <- function(ratio, ...) if (is.null(ratio) || is.na(ratio)) NULL else par
 legeY. <- function(ratio, ...) if (is.null(ratio) || is.na(ratio)) NULL else par('usr')[3] +diff(par('usr')[3:4]) *ratio
 
 
-## Easy legend == (2023-10-23) ========================
+## Easy legend == (2025-05-16) ========================
 legen2. <- function(name, legePos = NULL, col = NULL, lty = NULL, pch = NULL, cex = NULL, inv = NULL, ...) {
     if (is.null(name) || 0 %in% name) return() else name <- as.character(name)  # no factor
     par(family = jL.(name))
@@ -1400,7 +1404,7 @@ legen2. <- function(name, legePos = NULL, col = NULL, lty = NULL, pch = NULL, ce
         }
         cex <- mean(Cex)
     }
-    inv <- inv %||% {-0.5 *cex +1.5}
+    inv <- inv %||% {-0.5 *cex +1.8}
     col <- col %||% color2.(len = length(name))
     tmp <- legend('topright', name, cex = cex, plot = F)
     legeX <- legeX.(legePos[1]) %||% {2 *tmp[['rect']]$left -tmp[['text']]$x[1]}
@@ -1608,10 +1612,11 @@ plot_frame. <- function(xy = NULL, grid = F, xlim2 = NULL, ylim2 = NULL, tcl = p
 }
 
 
-## Quick plot == (2024-07-10) ========================
+## Quick plot == (2025-05-16) ========================
 plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, xlim = NA, ylim = NA, name = NULL,
                  type = c('l', 'p', 'pp', 'b', 'bb', 'h', 's')[1], col = NULL, col_flag = NULL, lty = NULL, lwd = NULL, pch = NULL,
-                 add = 1, grid = T, rot = 0, cexlab = NULL, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, PDF = T, multi = F)
+                 add = 1, grid = T, rot = 0, cexlab = NULL, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, legeCex = NULL,
+                 PDF = T, multi = F)
 {  # sel is the order you want, item is to make item plot
 
     ## organize raw data & resolve nest type
@@ -1763,7 +1768,7 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
         }  # END of data.frame case
 
         ## other settings
-        if (!is.null(sel) && is.numeric(sel) && any(sel > 0)) out <- out[sel, ]  # reorder if you want
+        out <- n_comp.(sel, nrow(out)) %>% out[., ]  # reorder if you want
         if (is.numeric(type)) type <- c('l', 'p', 'pp', 'b', 'bb', 'h', 's')[n_cyc.(type[1], 7)]
         out <- out %>%
                mutate(
@@ -1829,7 +1834,7 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
         }
     }
     if (nrow(dn) != 1 && !0 %in% name) {  # No legend is needed for one line at least. Or name = 0 returns no legend
-        legen2.(name %||% dn$legend, legePos, dn$color, dn$lty, dn$pch_legend)
+        legen2.(name %||% dn$legend, legePos, dn$color, dn$lty, dn$pch_legend, legeCex)
     }
     if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
     if (multi == FALSE) gp.()  # par(mfrow=c(2,1)) or layout(matrix(c(1,1,1,2),nrow=4,ncol=1,byrow=T)), not to use gp.()
@@ -1844,9 +1849,9 @@ plt. <- function(d, datatype = c('xy', 'yy', 'xyy')[1], trend = F, sel = NULL, x
 }
 
 
-## Kernel Density Estimation plot == (2024-07-17) ========================
-dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = NA, name = NULL, col = NULL, lty = 1, lwd = NULL, grid = T,
-                  xlab = NULL, ylab = NULL, legePos = NULL, cum = F, write = F, ...) {
+## Kernel Density Estimation plot == (2025-05-16) ========================
+dens. <- function(d, bw = 1, sel = NULL, xlim = NA, ylim = NA, name = NULL, col = NULL, lty = 1, lwd = NULL, grid = T,
+                  xlab = NULL, ylab = NULL, legePos = NULL, legeCex = NULL, cum = F, write = F, ...) {
     ## convert a vector to kde
     query_lib.(logKDE)
     kde_xy <- function(vec) {
@@ -1888,7 +1893,7 @@ dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = NA, name = N
     }  # END of kde_xy()
 
     ## transformation
-    dL <- dLformer.(d, ord) %>% map(kde_xy)
+    dL <- dLformer.(d, NULL) %>% map(kde_xy)  # Note: Don't use sel yet because sel is set on plt.()
     if (between(bw, 0, 1) == TRUE) {  # make the density ^ bw to highlight max channel
         bw2 <- function(x) {x[, 2] <- x[, 1] * x[, 2] ^ bw; return(x)}
         dL <- map(dL, bw2)
@@ -1901,7 +1906,7 @@ dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = NA, name = N
         ylim <- if (ymin_hook > 1) c(log10(1 / ymin_hook) / 3, NA) else ymin = c(0, NA)
         if (bw < 1) ylab <- ylab %||% str_c('Probability density (', round(bw, 2), ' powered moment)')
     }
-    plt.(dL, sel=sel, xlim=xlim, ylim=ylim, name=name, col=col, lty=lty, lwd=lwd, grid=grid, xlab=xlab, ylab=ylab, legePos=legePos)
+    plt.(dL, sel=sel, xlim=xlim, ylim=ylim, name=name, col=col, lty=lty, lwd=lwd, grid=grid, xlab=xlab, ylab=ylab, legePos=legePos, legeCex=legeCex)
 
     ## p-th percentile
     out <- map(dL, ~ cdf.(., p = c(0.1, 1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9) /100)) %>%  # percentile
@@ -1919,11 +1924,11 @@ dens. <- function(d, bw = 1, ord = F, sel = NULL, xlim = NA, ylim = NA, name = N
 }
 
 
-## Cumulative ratio plot == (2024-01-10) ========================
-crp. <- function(d, ord = F, sel = NULL, xlim = NA, ylim = c(-0.01, 1.05), name = NULL, col = NULL, grid = T,
-                 lwd = NULL, xlab = NULL, ylab = NULL, legePos = c(0.05, 0.98), px = NULL, py = NULL, ext = F, ...) {
+## Cumulative ratio plot == (2025-05-16) ========================
+crp. <- function(d, sel = NULL, xlim = NA, ylim = c(-0.01, 1.05), name = NULL, col = NULL, grid = T,
+                 lwd = NULL, xlab = NULL, ylab = NULL, legePos = c(0.05, 0.98), legeCex = NULL, px = NULL, py = NULL, ext = F, ...) {
 
-    dL <- dLformer.(d) %>% {if (is.atomic(.[[1]])) . else stop('Only available for [ID,y] or [y1,y2, ...]', call. = F)}
+    dL <- dLformer.(d, NULL) %>% {if (is.atomic(.[[1]])) . else stop('Only available for [ID,y] or [y1,y2, ...]', call. = F)}
     minmax <- unlist(dL) %>% range(., na.rm = T) %>% {. +delta.(.) *c(-1, +1) *0.03}
 
     ## color
@@ -1964,7 +1969,7 @@ crp. <- function(d, ord = F, sel = NULL, xlim = NA, ylim = c(-0.01, 1.05), name 
         cat(str_dup('=', 38), '\n')
     }
     plt.(c(dL_raw, dL_qxy), xlim=xlim, ylim=ylim, add=0, grid=grid, xlab=xlab, ylab=ylab)
-    plt.(dL_qxy, sel=sel, type='l', col=col_tr.(col2, tr = 1.0), add=2, lty=1, lwd=lwd, legePos=legePos)
+    plt.(dL_qxy, sel=sel, type='l', col=col_tr.(col2, tr = 1.0), add=2, lty=1, lwd=lwd, legePos=legePos, legeCex=legeCex)
     plt.(dL_raw, sel=sel, type='s', col=col_tr.(col2, tr = 0.5), add=2, lty=1, lwd=lwd, name=0)
     if (!is.null(px)) {
         out <- map(dL_qxy, function(nya) whichNear.(nya[[1]], px) %>% nya[[., 2]]) #%>% bind_rows(.)
@@ -1980,9 +1985,9 @@ crp. <- function(d, ord = F, sel = NULL, xlim = NA, ylim = c(-0.01, 1.05), name 
 }
 
 
-## Histograms plot == (2024-07-17) ========================
-hist. <- function(d, ord = F, bin = 'st', freq = T, xlim = NA, ylim = c(0, NA), col = NULL,
-                  xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, name = NULL, plot = T, overlay = T, ...) {
+## Histograms plot == (2025-05-16) ========================
+hist. <- function(d, sel = NULL, bin = 'st', freq = T, xlim = NA, ylim = c(0, NA), col = NULL,
+                  xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, legeCex = NULL, name = NULL, plot = T, overlay = T, ...) {
     ## Cut data range by xlim
     ## Make the bin width (if vec is only integer, the ticks are positioned in the center of each bar)
     whatBreak <- function(vec) {
@@ -1997,7 +2002,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlim = NA, ylim = c(0, NA), 
                }
         return(out)
     }
-    dL <- dLformer.(d, ord) %>% map(~ .[!is.na(.)])  # list of vectors, not xy.
+    dL <- dLformer.(d, sel) %>% map(~ .[!is.na(.)])  # list of vectors, not xy.
     ## NOTE: Screening the range you wanna observe        
     if (length(xlim) > 1 && anyNA(xlim)) {  # When xlim = c(0, NA)
         dL <- map(dL, ~ . %>% {if (is.na(xlim [1])) .[. <= xlim[2]] else .[. >= xlim[1]]})
@@ -2044,7 +2049,7 @@ hist. <- function(d, ord = F, bin = 'st', freq = T, xlim = NA, ylim = c(0, NA), 
 
         if ((length(dL) != 1 || !is.null(name)) && !0 %in% name) {  # No legend is needed for one line at least. Or name = 0 returns no legend
             name <- name %||% names(dL) %||% str_c('#', seq_along(dL))  # Auto assignment
-            legen2.(name, legePos, col_tr.(color, 0.75))
+            legen2.(name, legePos, col_tr.(color, 0.75), cex=legeCex)
         }
     }
     gp.()
@@ -2253,9 +2258,11 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
 }
 
 
-## Clustering by probability ellipse == (2024-09-11) ========================
+## Clustering by probability ellipse == (2025-05-16) ========================
 ## [x,y,ID] preferable
-ellip. <- function(d, trim = c(0, 1), sel = NULL, xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6, xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, fix = F, PDF = T, ...) {
+ellip. <- function(d, trim = c(0, 1), sel = NULL, xlim = NA, ylim = NA, el = T, name = NULL, col = 1:6,
+                   xlab = NULL, ylab = NULL, yline = NULL, legePos = NULL, legeCex = NULL, fix = F, PDF = T, ...)
+{
     query_lib.(ellipse, robustbase)
     ## data nesting
     d <- list2tibble.(d) %>%
@@ -2338,7 +2345,7 @@ ellip. <- function(d, trim = c(0, 1), sel = NULL, xlim = NA, ylim = NA, el = T, 
     }
     plot_frame.(xlim2=xlim2, ylim2=ylim2, tcl=-par('tcl'), padj=-0.2, bty='l', xlab=xlab, ylab=ylab, yline=yline)
     if (nrow(d) > 1) {
-        legen2.(name = name, legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0, cex = 0.85)
+        legen2.(name = name, legePos = legePos, col = str_sub(d$colpal, end = -2) %>% tolower() %>% col_tr.(., 0.7), lty = 0, cex = legeCex %||% 0.85)
     }
     if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
     gp.()  # Get back to the default fear of using mar
@@ -2874,9 +2881,9 @@ box22. <- function(d, type = 'half', jit = T, val = T, ord = F, wid = 0.65, ylim
 }
 
 
-## Bar plot == (2023-08-03) ========================
+## Bar plot == (2025-05-16) ========================
 barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NULL, val_onbar = F, elementChange = F,
-                  xlab = '', ylab = '', ylim = c(0, NA), col = NULL, legePos = NULL, name = NULL, cex = NULL,
+                  xlab = '', ylab = '', ylim = c(0, NA), col = NULL, legePos = NULL, legeCex = NULL, name = NULL, cex = NULL,
                   rot = 0, cex.digit = 0.7, ord = F, sel = NULL, lege_ord = F, lab_pos = NULL, ...) {
     ## bothersome settings... (val_onbar means to show values on bar or on error bar)
     query_lib.(stringi)
@@ -2945,7 +2952,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
     }
 
     ## Base plot
-    col2 <- color2.(col, len = if (nrow(mat_avg) == 1) ncol(mat_avg) else nrow(mat_avg)) %>% col_tr.(tr = 0.6)
+    col2 <- color2.(col, len = if (nrow(mat_avg) == 1) ncol(mat_avg) else nrow(mat_avg)) %>% col_tr.(tr = 0.75)
     pos <- barplot(mat_avg, beside = !cum, horiz = xyChange, plot = F,
                    space = if (!cum) NULL else spacer,
                    width = if (!cum) c(rep(wid, nrow(mat_avg)), spacer) else 1
@@ -3026,7 +3033,7 @@ barp. <- function(d, wid = 0.5, spacer = 0.5, cum = F, xyChange = F, digit = NUL
     ## Legend
     if (nrow(mat_avg) > 1) {
         leges <- legePos %||% {if (!xyChange) c(0.75, 0.99) else c(0.7, 0.3)}
-        legen2.(rownames(mat_avg), legePos = leges, col = col2, cex = NULL)  # cex = 0.65
+        legen2.(rownames(mat_avg), legePos = leges, col = col2, cex = legeCex %||% 0.65)
     }
     if (names(dev.cur()) == 'cairo_pdf') skipMess.(dev.off())
 # barp.(iris)  barp.(iris,cum=T)  barp.(iris,xyChange=T,rot=25)  barp.(iris,cum=T,xyChange=T)  barp.(iris, elementChange=T,cex=.9)
