@@ -1162,7 +1162,7 @@ neatChr. <- function(chr, ...) {  # c('nya :: A', 'nya :: B') --> c('A', 'B')
 }
 
 
-## Interactive filter == (2024-07-17) ========================
+## Interactive filter == (2025-06-05) ========================
 choice. <- function(factors, note = NULL, chr = T, one = F, ...) {
     ## chr = T returns the text in the choice (F returns the number of choice)
     factors <- unlist(factors)  # In case of X x 1 tibble
@@ -1184,26 +1184,51 @@ choice. <- function(factors, note = NULL, chr = T, one = F, ...) {
 
     ## to get text or number
     if (one == TRUE) note2 <- note %||% 'Select No.'
-    if (one == FALSE) note2 <- {note %||% 'Select No.'} %>% str_c(., '\n    Input like 1 2 3  or  1,2,3  or  1.2.3  or  1:3')
+    if (one == FALSE) note2 <- {note %||% 'Select No.'} %>% str_c(., '\n        └─| Input like 1 2 3  or  1,2,3  or  1.2.3')
 
+    pattern_numeric <- '[+-]?\\d+(\\.\\d+)?'
     repeat {
         numb <- readline(str_c('    ', note2, '\n>>> '))
-        numb <- gsub(',|\\.|\\*|/|;| |  ', '_', numb) %>%
-                str_split('_') %>%
-                unlist() %>%
-                {.[!. %in% '']} %>%
-                correctChr.() %>%
-                map.(~ eval(parse(text = .))) %>%
-                unique() %>%
-                .[!is.na(.)]  # To gurantee your input as numeric
+
+        ## To gurantee your input as separated numeric; '1 2 3' --> c(1, 2, 3)
+      # num2 <- gsub(',|\\.|\\*|/|;| |  ', '_', numb) %>%
+      #         str_split('_') %>%
+      #         unlist() %>%
+      #         {.[!. %in% '']} %>%
+      #         correctChr.() %>%
+      #         map.(~ eval(parse(text = .))) %>%
+      #         unique() %>%
+      #         .[!is.na(.)]
+	    num2 <- correctChr.(numb) %>%
+                str_extract_all(., pattern_numeric) %>%
+	            unlist() %>%
+	            as.numeric() %>%
+                unique()
 
         ## safe guard for wrong input
-        if (all(numb == 0)) numb <- seq_along(factors); break
-        if (all(numb >= 1) && one == TRUE && length(numb) == 1) break
-        if (all(numb >= 1) && one == FALSE && length(numb) >= 1) numb <- numb + 1; break
+        if (length(num2) != 0) {
+            if (all(num2 == 0)) {
+                num3 <- seq_along(factors)  # [0] ALL
+                break
+            }
+            if (one == TRUE && length(num2) == 1) {
+                if (dplyr::between(num2, 1, length(factors))) {
+                    num3 <- num2
+                    break
+                }
+            }
+            if (one == FALSE && length(num2) >= 1) {
+                if (all(dplyr::between(num2, 1, length(factors)))) {
+                    num3 <- num2 + 1  # because of including [0] ALL
+                    break
+                }
+            }
+        } else {
+            cat('\n    Input not a character but a number.\n')
+        }
+        cat('\n')
     }
-    numb <- numb[numb <= length(factors)]  # safe guard for overshoot input
-    out <- if (chr == TRUE) factors[numb] else numb  # text or its number
+    out <- if (chr == TRUE) factors[num3] else num3  # text or its number
 
     str_c('|', str_dup(stringi::stri_unescape_unicode('\\u2588'), 24), '|\n') %>% cat()
     return(out)
@@ -3489,8 +3514,8 @@ mat2. <- function(dt, xlim = NA, ylim = NA, xlab = '', ylab = '', ...) {  # matp
 }
 
 
-## Voronoi analysis == (2025-06-03) ========================
-voronoi. <- function(w = NULL, h = NULL, demo = F, ...) {
+## Voronoi (Dirichlet) / Delaunay analysis == (2025-06-06) ========================
+voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
     ## w, h is the cut (not trim but remain) area of the image
     query_lib.('imager')  # See: http://htsuda.net/archives/1985
     query_lib.('deldir')  # See: http://d.hatena.ne.jp/EulerDijkstra/20131204/1386118237
@@ -3504,27 +3529,41 @@ voronoi. <- function(w = NULL, h = NULL, demo = F, ...) {
                 choice.(one = T)
         if (is.null(img0)) stop('Not available image files ...\n\n', call. = F)
         img <- imager::load.image(img0)
-        if (!is.null(w)) img <- imager::imsub(img, x <= w)
-        if (!is.null(h)) img <- imager::imsub(img, y <= h)
+        if (!is.null(x)) {
+            x0 <- x
+            img <- imager::imsub(img, x <= x0)
+        }
+        if (!is.null(y)) {
+            y0 <- y
+            img <- imager::imsub(img, y <= y0)
+        }
     }
 
     ## hand-plot centers of gravity
-    plot(img)
-    cat('画像をクリックしてから打点してください．終了するにはESCキーを押してください\n')
-    coords <- locator(type = 'p', pch = 4, col = 'coral1')
+    par(mar = c(2.5, 3, 2, 1), mgp = c(1.5, 0.5, 0), tcl = -0.25)
+    if (Sys.info()['sysname'] == 'Darwin') par(family = 'HiraKakuProN-W3')
+    plot(img, xlim = c(0, imager::width(img)), ylim = c(imager::height(img), 0), main = '終了するにはESCキーを押してください')
+    abline(v = seq(0, imager::width(img), by = 200), h = seq(0, imager::height(img), by = 200), lwd = 0.5, lty = 2, col = 'grey95')
+    cat('画像をクリックしてから打点してください．終了するにはESCキーを押します．\n')
+    coords <- locator(type = 'p', pch = 4, col = 'seagreen1')
     d <- tibble(x = coords$x, y = coords$y)
     dev.off()
 
     ## Voronoi area
     mdl <- skipMess.(deldir::deldir(d$x, d$y))  # See: names(mdl)
     tiles <- deldir::tile.list(mdl)
-    areas <- mdl$summary$dir.area
+    area_voronoi <- mdl$summary$dir.area
+    area_delaunay <- mdl$summary$del.area
 
     ## plot
     par(mar = c(0, 0, 0, 0), omi = c(0, 0, 0, 0), xaxs = 'i', yaxs = 'i')
     plot(img ^ 3, axes = F)
+    tmp <- mdl$delsgs
+    if (doro == TRUE) {
+        for (i in 1 : nrow(tmp)) segments(tmp[i, 1], tmp[i, 2], tmp[i, 3], tmp[i, 4], lty = 3, lwd = 0.5, col = 'white')
+    }
     for (i in seq_along(tiles)) {
-        voroCol <- col_gradient.(d = areas, cols = 'grey70')[i]
+        voroCol <- col_gradient.(d = area_voronoi, cols = 'grey70')[i]
         polygon(tiles[[i]], col = voroCol, border = 'grey65')
     }
     points(d$x, d$y, cex = 1, pch = 19, col = 'grey13')
@@ -3533,9 +3572,10 @@ voronoi. <- function(w = NULL, h = NULL, demo = F, ...) {
     if (demo == FALSE) {
         save_name <- str_split(img0, '\\.')[[1]][1] %>% str_c(., '_voronoi')
         save.(save_name, wh = c(imager::width(img), imager::height(img)) / 100, type = 'j', dpi = 0.4)
-        write2.(tibble(!!img0 := areas), name = save_name)
+        write2.(tibble(!!str_c('ボロノイ_', img0) := area_voronoi, !!str_c('ドロネ−_', img0) := area_delaunay), name = save_name)
     }
     gp.()
+    cat('終了しました．\n\n')
 # voronoi.(demo = T)
 }
 
