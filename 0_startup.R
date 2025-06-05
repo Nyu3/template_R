@@ -1270,14 +1270,14 @@ col_tr. <- function(color = NULL, tr = 1, ...) {
 }
 
 
-## Color gradient with Y values == (2022-11-04) ========================
-colGra. <- function(d, color, ColorSteps = 13, ...) {
-    vec <- flatten_dbl(d) %>% .[!is.na(.)]
-    color2 <- c(col_tr.(color, tr = 0.75), 'grey80', col_tr.(color, tr = 0.6))  # sapply(vec, abs) %>% max(.)
-    kingMax <- abs(vec) %>% max  # NOTE: the 2nd para. of the following findInterval() are not {min, max} but {-max, +max}
-    out <- colorRampPalette(color2)(ColorSteps)[findInterval(vec, seq(-kingMax, +kingMax, length.out = ColorSteps))]
+## Color gradient with Y values == (2025-06-03) ========================
+col_gradient. <- function(d, cols = c ('grey70', 'grey50'), colorSteps = 8, ...) {
+    vec <- if (is.vector(d)) d else purrr::flatten_dbl(d) %>% .[!is.na(.)]
+    limits <- c(min(vec, na.rm = T), max(vec, na.rm = T))
+    tmp <- colorRampPalette(cols)(colorSteps)[findInterval(vec, seq(limits[1], limits[2], length.out = colorSteps))]
+    out <- col_tr.(tmp, tr = 0.6)
     return(out)
-# plot(iris[1:2], col = colGra.(iris[2], c('red', 'blue')))
+# plot(iris[1:2], col = col_gradient.(iris[2], c('red', 'blue')))
 }
 
 
@@ -1427,15 +1427,15 @@ today2. <- function(chr = NULL, ...) {
 now2. <- function(...) now(tz = 'Asia/Tokyo') %>% gsub('-|:', '', .) %>% gsub (' ', '-', .) %>% str_sub(3, 13)
 
 
-## Save graphics == (2024-09-11) ========================
-save. <- function(name = NULL, type = 'png', wh = dev.size(), ...) {
+## Save graphics == (2025-06-03) ========================
+save. <- function(name = NULL, type = 'png', wh = dev.size(), dpi = 1.0, ...) {
     saveN <- name %||% now2.()
     if (as.character(substitute(type)) %in% c('jpg', 'jpeg', 'j')) {
-        dev.copy(jpeg, file = str_c(saveN, '.jpg'), units = 'in', width = wh[1], height = wh[2], res = 150)
+        dev.copy(jpeg, file = str_c(saveN, '.jpg'), units = 'in', width = wh[1], height = wh[2], res = 150 * dpi)
         dev.off()
     }
     if (as.character(substitute(type)) %in% c('png', 'p')) {
-        dev.copy(png, file = str_c(saveN, '.png'), units = 'in', width = wh[1], height = wh[2], res = 350)
+        dev.copy(png, file = str_c(saveN, '.png'), units = 'in', width = wh[1], height = wh[2], res = 350 * dpi)
         dev.off()
     }
 }
@@ -3486,6 +3486,57 @@ mat2. <- function(dt, xlim = NA, ylim = NA, xlab = '', ylab = '', ...) {  # matp
     mtext(ylab, side = 2, las = 3, cex = 1, family = jL.(ylab), line = par('mar')[2] -yPos.(ylims))
     if (names(dev.cur()) == 'cairo_pdf') skipMess.(dev.off())
 # mat2.(iris[-5])
+}
+
+
+## Voronoi analysis == (2025-06-03) ========================
+voronoi. <- function(w = NULL, h = NULL, demo = F, ...) {
+    ## w, h is the cut (not trim but remain) area of the image
+    query_lib.('imager')  # See: http://htsuda.net/archives/1985
+    query_lib.('deldir')  # See: http://d.hatena.ne.jp/EulerDijkstra/20131204/1386118237
+
+    ## read an image
+    if (demo == TRUE) {
+        img <- imager::boats
+    } else {
+        img0 <- dir(pattern = '\\.(jpeg|jpg|JPG|png|PNG)$') %>%
+                .[!str_detect(., '_voronoi')] %>%
+                choice.(one = T)
+        if (is.null(img0)) stop('Not available image files ...\n\n', call. = F)
+        img <- imager::load.image(img0)
+        if (!is.null(w)) img <- imager::imsub(img, x <= w)
+        if (!is.null(h)) img <- imager::imsub(img, y <= h)
+    }
+
+    ## hand-plot centers of gravity
+    plot(img)
+    cat('画像をクリックしてから打点してください．終了するにはESCキーを押してください\n')
+    coords <- locator(type = 'p', pch = 4, col = 'coral1')
+    d <- tibble(x = coords$x, y = coords$y)
+    dev.off()
+
+    ## Voronoi area
+    mdl <- skipMess.(deldir::deldir(d$x, d$y))  # See: names(mdl)
+    tiles <- deldir::tile.list(mdl)
+    areas <- mdl$summary$dir.area
+
+    ## plot
+    par(mar = c(0, 0, 0, 0), omi = c(0, 0, 0, 0), xaxs = 'i', yaxs = 'i')
+    plot(img ^ 3, axes = F)
+    for (i in seq_along(tiles)) {
+        voroCol <- col_gradient.(d = areas, cols = 'grey70')[i]
+        polygon(tiles[[i]], col = voroCol, border = 'grey65')
+    }
+    points(d$x, d$y, cex = 1, pch = 19, col = 'grey13')
+
+    ## save
+    if (demo == FALSE) {
+        save_name <- str_split(img0, '\\.')[[1]][1] %>% str_c(., '_voronoi')
+        save.(save_name, wh = c(imager::width(img), imager::height(img)) / 100, type = 'j', dpi = 0.4)
+        write2.(tibble(!!img0 := areas), name = save_name)
+    }
+    gp.()
+# voronoi.(demo = T)
 }
 
 
