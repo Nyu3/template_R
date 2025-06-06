@@ -3552,11 +3552,13 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
     abline(v = seq(0, imager::width(img), by = 200), h = seq(0, imager::height(img), by = 200), lwd = 0.5, lty = 2, col = 'grey95')
     cat('画像をクリックしてから打点してください．終了するにはESCキーを押します．\n')
     points_list <- list()
+    ctr <- 1
     repeat {
         click_coords <- locator(n = 1, type = 'p', pch = 4, lwd = 2.5, col = 'yellow2')
         if (is.null(click_coords)) break  # end with Esc key or right click
-        points_list$x[length(points_list) + 1] <- click_coords$x
-        points_list$y[length(points_list) + 1] <- click_coords$y
+        points_list$x[ctr] <- click_coords$x
+        points_list$y[ctr] <- click_coords$y
+        ctr <- ctr + 1
     }
     d <- tibble(x = points_list$x, y = points_list$y)
     dev.off()
