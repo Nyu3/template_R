@@ -3553,7 +3553,7 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
     cat('画像をクリックしてから打点してください．終了するにはESCキーを押します．\n')
     points_list <- list()
     repeat {
-        click_coords <- locator(type = 'p', pch = 4, lwd = 1, col = 'yellow2')
+        click_coords <- locator(n = 1, type = 'p', pch = 4, lwd = 2.5, col = 'yellow2')
         if (is.null(click_coords)) break  # end with Esc key or right click
         points_list[[length(points_list) + 1]] <- click_coords    
     }
