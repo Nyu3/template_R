@@ -3577,7 +3577,7 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
         for (i in 1 : nrow(tmp)) segments(tmp[i, 1], tmp[i, 2], tmp[i, 3], tmp[i, 4], lty = 3, lwd = 0.5, col = 'white')
     }
     for (i in seq_along(tiles)) {
-        voroCol <- col_gradient.(d = area_voronoi, cols = 'grey70')[i]
+        voroCol <- col_gradient.(d = area_voronoi, cols = 'grey60')[i]
         polygon(tiles[[i]], col = voroCol, border = 'grey65')
     }
     points(d$x, d$y, cex = 1, pch = 19, col = 'grey13')
