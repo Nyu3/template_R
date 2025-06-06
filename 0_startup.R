@@ -3551,8 +3551,13 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
     plot(img, xlim = c(0, imager::width(img)), ylim = c(imager::height(img), 0), main = '終了するにはESCキーを押してください')
     abline(v = seq(0, imager::width(img), by = 200), h = seq(0, imager::height(img), by = 200), lwd = 0.5, lty = 2, col = 'grey95')
     cat('画像をクリックしてから打点してください．終了するにはESCキーを押します．\n')
-    coords <- locator(type = 'p', pch = 4, col = 'seagreen1')
-    d <- tibble(x = coords$x, y = coords$y)
+    points_list <- list()
+    repeat {
+        click_coords <- locator(type = 'p', pch = 4, lwd = 1, col = 'yellow2')
+        if (is.null(click_coords)) break  # end with Esc key or right click
+        points_list[[length(points_list) + 1]] <- click_coords    
+    }
+    d <- tibble(x = click_coords$x, y = click_coords$y)
     dev.off()
 
     ## Voronoi area
