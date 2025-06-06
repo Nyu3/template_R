@@ -3555,9 +3555,10 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
     repeat {
         click_coords <- locator(n = 1, type = 'p', pch = 4, lwd = 2.5, col = 'yellow2')
         if (is.null(click_coords)) break  # end with Esc key or right click
-        points_list[[length(points_list) + 1]] <- click_coords    
+        points_list$x[length(points_list) + 1] <- click_coords$x
+        points_list$y[length(points_list) + 1] <- click_coords$y
     }
-    d <- tibble(x = click_coords$x, y = click_coords$y)
+    d <- tibble(x = points_list$x, y = points_list$y)
     dev.off()
 
     ## Voronoi area
