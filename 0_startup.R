@@ -201,15 +201,16 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
         out <- if ('try-error' %in% class(tmp2)) tmp1 else tmp2
         return(out)
     }
-    d <- {if (is.data.frame(d)) clean_data(d) else map(d, clean_data)} %>%
-         {if (length(.) == 1) .[[1]] else .}  # just one sheet --> tibble
+
+    out <- {if (is.data.frame(d)) clean_data(d) else map(d, clean_data)} %>%
+           {if (length(.) == 1) .[[1]] else .}  # just one sheet --> tibble
 
     if (!is.null(path)) setwd(oldDir)
 
     if (filename_return == TRUE) {
         return(list(data = out, filename = file0))
     } else {
-        return(d)
+        return(out)
     }
 }
 
