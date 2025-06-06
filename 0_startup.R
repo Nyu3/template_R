@@ -134,20 +134,20 @@ vroom. <- function(file = NULL, skip = 0, coln = T, ...) {
 }
 
 
-## Reading data == (2023-03-03) ========================
-getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, filetype = NULL, ...) {
+## Reading data == (2025-06-06) ========================
+getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, filetype = NULL, filename_return = F, ...) {
     query_lib.(hablar)
     if (!is.null(path)) {
         oldDir <- getwd()
-        if (str_detect(path, '\\.csv|\\.CSV|\\.xls|\\.XLS|\\.xlsx') %>% any()) {
+        if (str_detect(path, '\\.(csv|CSV|xls|XLS|xlsx)$') %>% any()) {
             file <- basename(path)
             setwd(dirname(path))
         } else {
             setwd(path)
         }
     }
-    File <<- file %||% {  # You can use the file name later in case of using write.()
-                 filetype %||% '\\.csv|\\.CSV|\\.xls|\\.XLS|\\.xlsx' %>%
+    file0 <- file %||% {  # You can use the file name later in case of using write.()
+                 filetype %||% '\\.(csv|CSV|xls|XLS|xlsx)$' %>%
                  dir(pattern = .) %>%
                  str_subset(., pattern = fixed('$'), negate = T) %>% {
                      if (length(.) == 0) {
@@ -157,21 +157,21 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
                      }
                  }
              }
-    if (length(File) == 0) stop('No data file in this directory...\n\n', call. = F)
-    if (str_detect(File, pattern = '\\.csv|\\.CSV') %>% all()) {  # Don't use fixed() while using |
-        d <- vroom.(File)
-    } else if (str_detect(File, pattern = '\\.xls|\\.XLS|\\.xlsx') %>% all()) {
-        sht <- map(File, excel_sheets) %>% set_names(File)  # To mutate(sheet = ~), map_dfr() is not used
+    if (length(file0) == 0) stop('No data file in this directory...\n\n', call. = F)
+    if (str_detect(file0, pattern = '\\.(csv|CSV)$') %>% all()) {  # Don't use fixed() while using |
+        d <- vroom.(file0)
+    } else if (str_detect(file0, pattern = '\\.(xls|XLS|xlsx)$') %>% all()) {
+        sht <- map(file0, excel_sheets) %>% set_names(file0)  # To mutate(sheet = ~), map_dfr() is not used
         dL <- list()
-        for(i in seq_along(File)) {
-            dL <- map2(File[i], sht[[i]], ~ read_excel(.x, sheet = .y) %>%
-                                            mutate(file = .x, sheet = .y) %>%
-                                            relocate(file, sheet)
+        for(i in seq_along(file0)) {
+            dL <- map2(file0[i], sht[[i]], ~ read_excel(.x, sheet = .y) %>%
+                                             mutate(file = .x, sheet = .y) %>%
+                                             relocate(file, sheet)
                   ) %>%
                   {.[map_dbl(., nrow) > 0]} %>%
                   c(dL, .)
         }
-        if (length(File) == 1) dL <- map(dL, ~ select(., !file))
+        if (length(file0) == 1) dL <- map(dL, ~ select(., !file))
 
         ## bind brother sheets
         tmp <- matrix(NA, length(dL), length(dL))
@@ -205,7 +205,12 @@ getData. <- function(path = NULL, file = NULL, timeSort = F, timeFactor = NULL, 
          {if (length(.) == 1) .[[1]] else .}  # just one sheet --> tibble
 
     if (!is.null(path)) setwd(oldDir)
-    return(d)
+
+    if (filename_return == TRUE) {
+        return(list(data = out, filename = file0))
+    } else {
+        return(d)
+    }
 }
 
 
