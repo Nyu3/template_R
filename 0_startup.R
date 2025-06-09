@@ -3563,9 +3563,9 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
         }
         for (i in seq_along(tiles)) {
             voroCol <- col_gradient.(d = area_voronoi, cols = 'grey60')[i]
-            polygon(tiles[[i]], col = voroCol, border = 'grey65')
+            polygon(tiles[[i]], col = voroCol, lwd = 3, border = 'grey65')
         }
-        points(d$x, d$y, cex = 1.5, pch = 19, col = 'grey13')
+        points(d$x, d$y, cex = 3, pch = 19, col = 'grey13')
 
         ## save
         if (demo == FALSE) {
@@ -3580,9 +3580,9 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
     ## hand-plot centers of gravity
     par(mar = c(2.5, 3, 2, 1), mgp = c(1.5, 0.5, 0), tcl = -0.25)
     if (Sys.info()['sysname'] == 'Darwin') par(family = 'HiraKakuProN-W3')
-    plot(img, xlim = c(0, imager::width(img)), ylim = c(imager::height(img), 0), main = '終了時: 右クリックで停止を選びEscキーを押してください')
+    plot(img, xlim = c(0, imager::width(img)), ylim = c(imager::height(img), 0), main = '終了するには右クリックで[停止]を選んでください')
     abline(v = seq(0, imager::width(img), by = 200), h = seq(0, imager::height(img), by = 200), lwd = 0.5, lty = 2, col = 'grey95')
-    cat('画像をクリックしてから打点してください．\nWindows版では右クリックで『停止』を選んでからEscキーを押さないとデータ化されません．\n')
+    cat('画像をクリックしてから打点してください．\n')
     points_list <- list()
     ctr <- 1
     repeat {
