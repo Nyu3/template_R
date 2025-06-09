@@ -3563,14 +3563,14 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
         }
         for (i in seq_along(tiles)) {
             voroCol <- col_gradient.(d = area_voronoi, cols = 'grey60')[i]
-            polygon(tiles[[i]], col = voroCol, lwd = 3, border = 'grey65')
+            polygon(tiles[[i]], col = voroCol, lwd = 2.5, border = 'grey65')
         }
-        points(d$x, d$y, cex = 3, pch = 19, col = 'grey13')
+        points(d$x, d$y, cex = 2.5, pch = 19, col = 'grey13')
 
         ## save
         if (demo == FALSE) {
             save_name <- str_split(img0, '\\.')[[1]][1] %>% str_c(., '_voronoi')
-            save.(save_name, wh = c(imager::width(img), imager::height(img)) / 100, type = 'j', dpi = 0.4)
+            save.(save_name, wh = c(imager::width(img), imager::height(img)) / 100, type = 'j', dpi = 0.5)
             write2.(tibble(!!str_c('ボロノイ_', img0) := area_voronoi, !!str_c('ドロネ－_', img0) := area_delaunay), name = save_name)
         }
         gp.()
