@@ -63,12 +63,14 @@ setHook(packageEvent(pkgname = 'grDevices', event = 'onLoad'), function(...) {
 })
 
 
-## Rewrite other parameters of defalut values == (2021-08-17) ========================
+## Rewrite other parameters of defalut values == (2025-06-09) ========================
 ## https://stackoverflow.com/questions/39620669/source-script-to-separate-environment-in-r-not-the-global-environment
 ## https://coolbutuseless.bitbucket.io/2018/04/11/changing-the-default-arguments-to-a-function/
 .nya0env <- new.env()  # Naming initial dot works out not to show your own functions on the gloval environment
 
 Sys.setenv(TZ = 'Asia/Tokyo')  # Confirm by Sys.timezone()
+
+options(locatorBell = F)  # for voronoi.()
 
 library('grDevices')  # formals(package_name::function) is error
 formals(cairo_pdf)[c('width', 'height', 'pointsize', 'onefile', 'bg')] <- list(4.5, 3.3, 13, TRUE, 'transparent')
