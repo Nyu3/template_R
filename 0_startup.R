@@ -3520,7 +3520,7 @@ mat2. <- function(dt, xlim = NA, ylim = NA, xlab = '', ylab = '', ...) {  # matp
 }
 
 
-## Voronoi (Dirichlet) / Delaunay analysis == (2025-06-06) ========================
+## Voronoi (Dirichlet) / Delaunay analysis == (2025-06-09) ========================
 voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
     ## w, h is the cut (not trim but remain) area of the image
     query_lib.('imager')  # See: http://htsuda.net/archives/1985
@@ -3545,51 +3545,59 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
         }
     }
 
+
+    ## plot function
+    voronoi_plot <- function(d, ...) {
+        ## Voronoi area
+        mdl <- skipMess.(deldir::deldir(d$x, d$y))  # See: names(mdl)
+        tiles <- deldir::tile.list(mdl)
+        area_voronoi <- mdl$summary$dir.area
+        area_delaunay <- mdl$summary$del.area
+
+        ## plot
+        par(mar = c(0, 0, 0, 0), omi = c(0, 0, 0, 0), xaxs = 'i', yaxs = 'i')
+        plot(img ^ 1.3, axes = F)
+        tmp <- mdl$delsgs
+        if (doro == TRUE) {
+            for (i in 1 : nrow(tmp)) segments(tmp[i, 1], tmp[i, 2], tmp[i, 3], tmp[i, 4], lty = 3, lwd = 0.5, col = 'white')
+        }
+        for (i in seq_along(tiles)) {
+            voroCol <- col_gradient.(d = area_voronoi, cols = 'grey60')[i]
+            polygon(tiles[[i]], col = voroCol, border = 'grey65')
+        }
+        points(d$x, d$y, cex = 1.5, pch = 19, col = 'grey13')
+
+        ## save
+        if (demo == FALSE) {
+            save_name <- str_split(img0, '\\.')[[1]][1] %>% str_c(., '_voronoi')
+            save.(save_name, wh = c(imager::width(img), imager::height(img)) / 100, type = 'j', dpi = 0.4)
+            write2.(tibble(!!str_c('ボロノイ_', img0) := area_voronoi, !!str_c('ドロネ－_', img0) := area_delaunay), name = save_name)
+        }
+        gp.()
+        cat('終了しました．\n\n')
+    }
+
     ## hand-plot centers of gravity
     par(mar = c(2.5, 3, 2, 1), mgp = c(1.5, 0.5, 0), tcl = -0.25)
     if (Sys.info()['sysname'] == 'Darwin') par(family = 'HiraKakuProN-W3')
-    plot(img, xlim = c(0, imager::width(img)), ylim = c(imager::height(img), 0), main = '終了するにはESCキーを押してください')
+    plot(img, xlim = c(0, imager::width(img)), ylim = c(imager::height(img), 0), main = '終了時: 右クリックで停止を選びEscキーを押してください')
     abline(v = seq(0, imager::width(img), by = 200), h = seq(0, imager::height(img), by = 200), lwd = 0.5, lty = 2, col = 'grey95')
-    cat('画像をクリックしてから打点してください．終了するにはESCキーを押します．\n')
+    cat('画像をクリックしてから打点してください．\nWindows版では右クリックで『停止』を選んでからEscキーを押さないとデータ化されません．\n')
     points_list <- list()
     ctr <- 1
     repeat {
         click_coords <- locator(n = 1, type = 'p', pch = 4, lwd = 2.5, col = 'yellow2')
-        if (is.null(click_coords)) break  # end with Esc key or right click
-        points_list$x[ctr] <- click_coords$x
-        points_list$y[ctr] <- click_coords$y
-        ctr <- ctr + 1
-    }
-    d <- tibble(x = points_list$x, y = points_list$y)
-  # dev.off()  # this command always freezes R-Win
+        if (!is.null(click_coords)) {
+            points_list$x[ctr] <- click_coords$x
+            points_list$y[ctr] <- click_coords$y
+            ctr <- ctr + 1
+        } else {  # end with Esc key or right click
+            d <- tibble(x = points_list$x, y = points_list$y)
+            voronoi_plot(d)
+            break
+        }
 
-    ## Voronoi area
-    mdl <- skipMess.(deldir::deldir(d$x, d$y))  # See: names(mdl)
-    tiles <- deldir::tile.list(mdl)
-    area_voronoi <- mdl$summary$dir.area
-    area_delaunay <- mdl$summary$del.area
-
-    ## plot
-    par(mar = c(0, 0, 0, 0), omi = c(0, 0, 0, 0), xaxs = 'i', yaxs = 'i')
-    plot(img ^ 3, axes = F)
-    tmp <- mdl$delsgs
-    if (doro == TRUE) {
-        for (i in 1 : nrow(tmp)) segments(tmp[i, 1], tmp[i, 2], tmp[i, 3], tmp[i, 4], lty = 3, lwd = 0.5, col = 'white')
     }
-    for (i in seq_along(tiles)) {
-        voroCol <- col_gradient.(d = area_voronoi, cols = 'grey60')[i]
-        polygon(tiles[[i]], col = voroCol, border = 'grey65')
-    }
-    points(d$x, d$y, cex = 1, pch = 19, col = 'grey13')
-
-    ## save
-    if (demo == FALSE) {
-        save_name <- str_split(img0, '\\.')[[1]][1] %>% str_c(., '_voronoi')
-        save.(save_name, wh = c(imager::width(img), imager::height(img)) / 100, type = 'j', dpi = 0.4)
-        write2.(tibble(!!str_c('ボロノイ_', img0) := area_voronoi, !!str_c('ドロネ−_', img0) := area_delaunay), name = save_name)
-    }
-    gp.()
-    cat('終了しました．\n\n')
 # voronoi.(demo = T)
 }
 
