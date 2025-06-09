@@ -3561,7 +3561,7 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
         ctr <- ctr + 1
     }
     d <- tibble(x = points_list$x, y = points_list$y)
-    dev.off()
+  # dev.off()  # this command always freezes R-Win
 
     ## Voronoi area
     mdl <- skipMess.(deldir::deldir(d$x, d$y))  # See: names(mdl)
