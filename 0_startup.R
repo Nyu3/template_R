@@ -652,10 +652,10 @@ tomi. <- function(d, ...) {
     d2_na <- d1 %>% filter(is.na(X1)) %>% .[-1]
     names(d2_na) <- gsub('X', 'Y', names(d2_na))
 
-    out <- bind_cols(d2_L, d2_na) %>%
-          pivot_longer(cols = -X1) %>%
-          select(- name) %>%
-          rename(line := X1)
+    out <- {if (nrow(d2_na) != 0) bind_cols(d2_L, d2_na) else d2_L} %>%
+           pivot_longer(cols = -X1) %>%
+           select(- name) %>%
+           rename(line := X1)
 
     clipr::write_clip(out, object_type = 'table')
     cat('\n    Copied on your clipboard ...\n\n')
