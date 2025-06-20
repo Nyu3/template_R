@@ -641,6 +641,27 @@ pk2. <- function(excel = T, ...) {
 }
 
 
+## Transforming test cut data from pp.() to your clipboard == (2025-06-20) ========================
+tomi. <- function(d, ...) {
+    query_lib.(clipr)
+    d0 <- pp.(n = 0)
+
+    d1 <- d0 %>% mutate(X1 = str_c('L', X1))
+
+    d2_L <- d1 %>% filter(!is.na(X1))
+    d2_na <- d1 %>% filter(is.na(X1)) %>% .[-1]
+    names(d2_na) <- gsub('X', 'Y', names(d2_na))
+
+    out <- bind_cols(d2_L, d2_na) %>%
+          pivot_longer(cols = -X1) %>%
+          select(- name) %>%
+          rename(line := X1)
+
+    clipr::write_clip(out, object_type = 'table')
+    cat('\n    Copied on your clipboard ...\n\n')
+}
+
+
 ## Transpose data frame into tibble == (2024-02-22) ========================
 t. <- function(d, ...) {
     tmp <- d %>% select(where(~!is.numeric(.)), everything()) %>% t()
@@ -1509,6 +1530,29 @@ write2. <- function(.d, name = NULL, sheet = NULL, ...) {
 }
 
 
+## Create SQL insert sentence by pp.()  == (2025-06-17) ========================
+sql_insert. <- function(d, db_name = NULL, ...) {
+    chr1 <- str_c('\n\n INSERT INTO ', db_name %||% 'xxx', '\n')
+    chr2 <- str_c('(', str_flatten(names(d), collapse = ', '), ')\n')
+    chr3 <- 'VALUES\n'
+
+    d0 <- d %>% mutate_if(is.numeric, as.character) %>%
+          sapply(function(x) str_c("\'", x, "\'")) %>%
+          as_tibble()
+    d0[is.na(d0)] <- 'NULL'
+
+    chr4 <- as_tibble(d0) %>%
+            unite(col = 'chr4', everything(), sep = ', ', remove = T) %>%
+            mutate(chr4 = str_c('(', chr4, '),\n')) %>%
+            .[[1]]
+
+    chr4[length(chr4)] <- gsub(',\n', '', chr4[length(chr4)])
+
+    cat(chr1, chr2, chr3, chr4, '\n\n\n')
+# sql_insert.(iris, 'nya.dbo.M_inspection')
+}
+
+
 ## Fitting by GAM (Generized Additive Model) - GCV (Generized Cross Validation) == (2023-09-07) ========================
 gamXY. <- function(x, y = NULL, mdlGet = F, boost = F, n.boost = NULL, xlim = c(NA, NA), y0over = F, ...) {
     if (is.data.frame(x) && ncol(x) == 2) def.(c('x', 'y'), list(x[[1]], x[[2]]))
@@ -2127,16 +2171,20 @@ pie. <- function(d, col = NULL, cex = 0.85, percent = F, digit = 1, cent_name = 
 }
 
 
-## Linear correlation plot == (2023-10-27) ========================
-## NOTE.1  Regression analysis is strictly applicable to cause (x) and effect (y; random variable) on the assumption that x has NO error...
-## NOTE.2  Correlation analysis sees BOTH x & y as random variables; thus don't use linear regression and prob. ellipse at the same time...
-## Trivia.1  You'll see the cross points on the line and ellipse can draw y-axis parallel lines as tangent
-## Trivia.2  The longer axis of the ellipse is corresponding to the axis of principal component analysis
-corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4, legePos = NULL, x_lr = NULL, li = F, el = T, fix = F,
-                  yline = NULL, lege = T, PDF = T, ...) {
+## Linear correlation plot == (2025-06-20) ========================
+## NOTE1. Regression analysis is strictly applicable to cause (x) and effect (y; random variable) on the assumption that x has NO error...
+## NOTE2. Correlation analysis sees BOTH x & y as random variables; thus don't use linear regression and prob. ellipse at the same time...
+## Trivia1. You'll see the cross points on the line and ellipse can draw y-axis parallel lines as tangent
+## Trivia2. The longer axis of the ellipse is corresponding to the axis of principal component analysis
+corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4, legePos = NULL,
+                  x_lr = NULL, li = F, el = T, fix = F, yline = NULL, lege = T, PDF = T, ...)
+{
     ## owful settings...
     query_lib.(ellipse, robustbase)
-    d <- list2tibble.(d) %>% select_if(is.numeric) %>% clean2.(na0 = F) %>% .[complete.cases(.), ]  # Omit the row including any NA
+    d <- list2tibble.(d) %>%
+         select_if(is.numeric) %>%
+         clean2.(na0 = F) %>%
+         .[complete.cases(.), ]  # Omit the row including any NA
     if (nrow(d) == 0) stop('No available data...\n\n', call. = F)
     if (!ncol(d) %in% c(2, 3)) {
         d <- choice.(names(d), note = '[x,y] or [x,y,label] data', chr = F) %>% d[.]
@@ -2164,26 +2212,51 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
 
     ## Legend position 1, 2, 3, 4 as quadrant
     text_pos <- function(...) {
-        xyPos <- {Cnt -c(mean(par('usr')[1:2]), mean(par('usr')[3:4]))} %>% {. >= c(0, 0)}
+        xyPos <- {Cnt - c(mean(par('usr')[1:2]), mean(par('usr')[3:4]))} %>%
+                 {. >= c(0, 0)}
         def.(c('xpos', 'ypos', 'yScMin', 'yScMax'), list(xyPos[1], xyPos[2], par('usr')[3], par('usr')[4]))
-        cnt_pos <- if (xpos && ypos) 1 else if (!xpos && ypos) 2 else if (!xpos && !ypos) 3 else if (xpos && !ypos) 4
+        cnt_pos <- (
+                    `if` (xpos && ypos, 1,
+                    `if` (!xpos && ypos, 2,
+                    `if` (!xpos && !ypos, 3,
+                    `if` (xpos && !ypos, 4))))
+        )
         out <- list(
-            if (Coef[2] >= 0 && Coef[1] < yScMin) 2 else if (Coef[2] >= 0 && Coef[1] >= yScMin) 4 else if (Coef[2] < 0) 3,
-            if (Coef[2] >= 0) 4 else if (Coef[2] < 0 && Coef[1] < yScMax) 1 else if (Coef[2] < 0 && Coef[1] >= yScMax) 3,
-            if (Coef[2] >= 0 && Coef[1] < yScMin) 2 else if (Coef[2] >= 0 && Coef[1] >= yScMin) 4 else if (Coef[2] < 0) 1,
-            if (Coef[2] >= 0) 2 else if (Coef[2] < 0 && Coef[1] < yScMax) 1 else if (Coef[2] < 0 && Coef[1] >= yScMax) 3
-        )[[cnt_pos]]
+                (
+                    `if` (Coef[2] >= 0 && Coef[1] < yScMin, 2,
+                    `if` (Coef[2] >= 0 && Coef[1] >= yScMin, 4,
+                    `if` (Coef[2] < 0, 3)))
+                )
+              , (
+                    `if` (Coef[2] >= 0, 4,
+                    `if` (Coef[2] < 0 && Coef[1] < yScMax, 1,
+                    'if' (Coef[2] < 0 && Coef[1] >= yScMax, 3)))
+                )
+              , (
+                    `if` (Coef[2] >= 0 && Coef[1] < yScMin, 2,
+                    `if` (Coef[2] >= 0 && Coef[1] >= yScMin, 4,
+                    `if` (Coef[2] < 0, 1)))
+                )
+              , (
+                     `if` (Coef[2] >= 0, 2,
+                     `if` (Coef[2] < 0 && Coef[1] < yScMax, 1,
+                     `if` (Coef[2] < 0 && Coef[1] >= yScMax, 3)))
+                )
+            ) %>%
+            .[[cnt_pos]]
         return(out)
     }
     ## Legend equation
-    text3 <- function(text_pos) {
-        Show <- function(x) ifelse(any.(Cnt > 10), 1, 2) %>% {sprintf(str_c('%.', ., 'f'), x)}
+    text3 <- function(tp = text_pos()) {
+        Show <- function(x) {if (any.(Cnt > 10)) 1 else if (any.(Cnt > 1)) 2 else 3} %>% {sprintf(str_c('%.', ., 'f'), x)}
         Text1 <- bquote('(' *bar(italic(x)) *',' ~bar(italic(y)) *')' == '(' *.(Show(mean.(x))) *','  ~.(Show(mean.(y))) *')')
-        Text2 <- Coef[1] %>% {c(. > 0, . < 0, . == 0)} %>% which() %>%
+        Text2 <- Coef[1] %>%
+                 {c(. > 0, . < 0, . == 0)} %>%
+                 which() %>%
                  list(
-                     bquote(hat(italic(y)) == .(sprintf('%.2f', Coef[2])) *italic(x) + .(sprintf('%.2f', Coef[1])) *phantom(')')),
-                     bquote(hat(italic(y)) == .(sprintf('%.2f', Coef[2])) *italic(x) ~ .(sprintf('%.2f', Coef[1])) *phantom(')')),
-                     bquote(hat(italic(y)) == .(sprintf('%.2f', Coef[2])) *italic(x) *phantom(')'))
+                     bquote(hat(italic(y)) == .(sprintf('%.2f', Coef[2])) *italic(x) + .(sprintf('%.2f', Coef[1])) *phantom(')'))
+                   , bquote(hat(italic(y)) == .(sprintf('%.2f', Coef[2])) *italic(x) ~ .(sprintf('%.2f', Coef[1])) *phantom(')'))
+                   , bquote(hat(italic(y)) == .(sprintf('%.2f', Coef[2])) *italic(x) *phantom(')'))
                  )[[.]]
         Text3 <- bquote(italic(R)[adj] ^2 == .(sprintf('%.2f', summary(mdl)$adj.r.squared)))
         State <- function(x) if (abs(x) < 0.25) 'none' else if (abs(x) < 0.50) 'weak' else if (abs(x) < 0.75) 'moderate' else 'strong'
@@ -2195,7 +2268,7 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
                  }
         ## Set proper text postion
         lege4 <- list(c(0.98, 1.00), c(0.05, 1.00), c(0.05, 0.35), c(0.98, 0.35))
-        if (is.null(legePos)) legePos <- lege4[[text_pos]]
+        if (is.null(legePos)) legePos <- lege4[[tp]]
         ## Note: no co-existence
         text_num <- if (li && el) 1:3 else if (li && !el) 1:3 else if (!li && el) c(1, 4, 5) else if (!li && !el) 1
         for (i in seq_along(text_num)) {
@@ -2207,24 +2280,17 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
     }  # END of text3()
 
     ## Drawing
-    xlim2 <- if (!is.null(xlim)) {
-                 pr.(x, xlim, 0.13)
-             } else {
-                 if (between(min.(x) /min.(y), 0.9, 1.1) & between(max.(x) /max.(y), 0.9, 1.1) ) {  # When x&y differ slightly; keep the same scale
-                     pr.(c(x, y), NA, 0.13)
-                 } else {
-                     pr.(x, NA, 0.13)  # When x & y differ largely; change proper scale to see easily
-                 }
-             }
-    ylim2 <- if (!is.null(ylim)) {
-                 pr.(y, ylim, 0.13)
-             } else {
-                 if (between(min.(x) /min.(y), 0.9, 1.1) & between(max.(x) /max.(y), 0.9, 1.1) ) {  # When x&y differ slightly; keep the same scale
-                     pr.(c(x, y), NA, 0.13)
-                 } else {
-                     pr.(y, NA, 0.13)
-                 }
-             }
+    limits <- function(xylim, x, y) {  # https://qiita.com/doikoji/items/37870503d7705a6dd546
+        return(
+            `if` (!is.null(xylim), pr.(x, xlim, 0.13)
+            ## When x&y differ slightly; keep the same scale
+          , `if` (between(min.(x) /min.(y), 0.9, 1.1) & between(max.(x) /max.(y), 0.9, 1.1), pr.(c(x, y), NA, 0.13)
+            ## When x & y differ largely; change proper scale to see easily
+          , pr.(x, NA, 0.13)))
+        )
+    }
+    xlim2 <- limits(xlim, x, y)
+    ylim2 <- limits(ylim, y, x)
 
     if (fix == TRUE) {  # Wnen the same scale on both x and y-axis is desired
         def.(c('xlim2', 'ylim2'), list(range(xlim2, ylim2), range(xlim2, ylim2)))
@@ -2242,7 +2308,10 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
         polygon(polygonX, polygonY, border = NA, col = col_tr.('grey95', tr = 0.8))
         abline(mdl, col = '#22222222', lwd = 3.5)  # KS2014 line
         if (!is.null(x_lr) & length(x_lr) == 2) {  # y-range of 95% CI corresponding to your interested x-range
-            whichNear.(qx, x_lr) %>% {c(min(lcl[.]), max(ucl[.]))} %>% set_names(c('(Min.95%CI)', '(Max.95%CI)')) %>% print()
+            whichNear.(qx, x_lr) %>%
+            {c(min(lcl[.]), max(ucl[.]))} %>%
+            set_names(c('(Min.95%CI)', '(Max.95%CI)')) %>%
+            print()
         }
     }
     ## http://friendly.github.io/heplots/reference/covEllipses.html
@@ -2250,14 +2319,17 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
     draw_ellipse <- function(...) {  # Minimum Covariance Determinant (MCD)
         tmp <- try(robustbase::covMcd(d, alpha = 0.75)$cov, silent = T)
         elli95 <- {if (nrow(d) > 13 && !'try-error' %in% class(tmp)) tmp else cov(d)} %>%
-                  ellipse::ellipse(., centre = Cnt, level = 0.95, npoints = 200) %>% as_tibble()
+                  ellipse::ellipse(., centre = Cnt, level = 0.95, npoints = 200) %>%
+                  as_tibble()
         lines(elli95, col = col_tr.('black', 0.35), lwd = 1.0)
         if (!is.null(x_lr) && length(x_lr) == 2) {  # y-range of 95% CI corresponding to your interested x-range
             el1 <- elli95[1:100, ]
             el2 <- elli95[101:200, ]
             el1_range <- whichNear.(el1[[1]], x_lr) %>% el1[., 2] %>% range()
             el2_range <- whichNear.(el2[[1]], x_lr) %>% el2[., 2] %>% range()
-            range(el1_range, el2_range) %>% set_names(c('(Min.95%CI)', '(Max.95%CI)')) %>% print()
+            range(el1_range, el2_range) %>%
+            set_names(c('(Min.95%CI)', '(Max.95%CI)')) %>%
+            print()
         }
     }
     ## plot
@@ -2270,7 +2342,7 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
         str_sub(colpal, end = -2) %>% tolower() %>% col_tr.(., 0.5)  # Remove the last 's' like 'Greys' --> 'Grey' --> 'grey'
     }
     if (li == TRUE) draw_linearFit()
-  # if (li == FALSE && el == TRUE) draw_ellipse()  # Modified ecllipse
+  # if (li == FALSE && el == TRUE) draw_ellipse()
     if (el == TRUE) draw_ellipse()  # Modified ecllipse
     if (nrow(d) >= 20) {
         points(x, y, pch = 19, lwd = 0.95, cex = 1.3, col = color)
@@ -2278,10 +2350,7 @@ corp. <- function(d, xlim = NULL, ylim = NULL, xlab = NULL, ylab = NULL, col = 4
         points(x, y, pch = 21, lwd = 1.1, cex = 1.2, bg = color); points(x, y, pch = 21, lwd = 0.7, cex = 0.75)
     }
     plot_frame.(xlim2=xlim2, ylim2=ylim2, tcl=-par('tcl'), padj=-0.2, bty='l', xlab=xlab, ylab=ylab, yline=yline)
-  # if (lege == TRUE) {
-  #     textP <- text_pos()
-  #     text3(textP)
-  # }
+    if (lege == TRUE) text3()
     if (names(dev.cur()) == 'cairo_pdf' && PDF == T) skipMess.(dev.off())
     gp.()  # Get back to the default fear of using mar
 # corp.(iris[3:4])
@@ -2601,8 +2670,10 @@ box1plot. <- function(yL, type = 'half', col, xlab = NULL, ylab = NULL, ylim = N
 
 
 ## Boxplot oriented for quantile limit and full/half box == (2023-10-16) ========================
-box2. <- function(d, type = c('half', 'full')[1], sel = NULL, name = NULL, col = NULL, pareto = F, cut = F, xlab = NULL, ylab = NULL, ylim = NA,
-                  wid = 0.65, jit = T, val = T, n = F, rot = 0, cex_xname = 0.8, digit = NULL, time_div = NULL, PDF = T, ...) {
+box2. <- function(d, type = c('half', 'full')[1], sel = NULL, name = NULL, col = NULL, pareto = F, cut = F,
+                  xlab = NULL, ylab = NULL, ylim = NA,
+                  wid = 0.65, jit = T, val = T, n = F, rot = 0, cex_xname = 0.8, digit = NULL, time_div = NULL, PDF = T, ...)
+{
     ## d <- sample_n(diamonds[-8:-10], 200)
     ## transform data
     tmp <- box2nest.(d, time_div)
@@ -2637,7 +2708,7 @@ box2. <- function(d, type = c('half', 'full')[1], sel = NULL, name = NULL, col =
         ## adjust range
         if (cut == TRUE) {
             cut_vec <- function(x) {
-                out2 <- quantile(x, probs = c(0.25, 0.75), na.rm = T) +c(-1, 1) *IQR(x, na.rm = T) *3.0  # last term is the cut-off criteria
+                out2 <- quantile(x, probs = c(0.25, 0.75), na.rm = T) + c(-1, 1) * IQR(x, na.rm = T) * 3.0  # last term is the cut-off criteria
                 x[which(x < out2[1] | x > out2[2])] <- NA  # delete too large or small outliers
                 return(x)
             }
