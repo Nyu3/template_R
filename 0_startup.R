@@ -807,7 +807,7 @@ id2y. <- function(d, ...) {  # ID: crush, y: vacuum
                list2tibble.()
         return(out)
     }
-# id2y.(iris[4:5])  id2y.(diamonds[1:3] %>% sample_n(1000)) %>% box2.
+# id2y.(iris[4:5])  id2y.(diamonds[1:3] %>% sample_n(1000)) %>% box2.()
 }
 
 
@@ -2455,7 +2455,7 @@ ellip. <- function(d, trim = c(0, 1), sel = NULL, xlim = NA, ylim = NA, el = T, 
 }
 
 
-## Transformed a tibble for boxplot2. == (2023-10-16) ========================
+## Transformed a tibble for boxplot2. == (2025-06-21) ========================
 box2nest. <- function(d, time_div = NULL, ...) {
     ## select data
     if (is.atomic(d)) d <- tibble(x = d)
@@ -2483,6 +2483,7 @@ box2nest. <- function(d, time_div = NULL, ...) {
                    group_nest(!!tab_col := get(tab_col)) %>%
                    mutate(!!num_col[i] := map(data, ~ pull(.))) %>%
                    select(!data) %>%
+                   {.[naturalsort::naturalorder(.[[tab_col]]), ]} %>%
                    list()
             out <- if (i == 1) {
                        tibble(row_title = NA_character_, tab = NA_character_, factors = NA_character_, !!num_col[i] := tmp)
