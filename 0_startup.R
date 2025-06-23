@@ -3592,7 +3592,7 @@ mat2. <- function(dt, xlim = NA, ylim = NA, xlab = '', ylab = '', ...) {  # matp
 }
 
 
-## Voronoi (Dirichlet) / Delaunay analysis == (2025-06-09) ========================
+## Voronoi (Dirichlet) / Delaunay analysis == (2025-06-23) ========================
 voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
     ## w, h is the cut (not trim but remain) area of the image
     query_lib.('imager')  # See: http://htsuda.net/archives/1985
@@ -3643,7 +3643,13 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
         if (demo == FALSE) {
             save_name <- str_split(img0, '\\.')[[1]][1] %>% str_c(., '_voronoi')
             save.(save_name, wh = c(imager::width(img), imager::height(img)) / 100, type = 'j', dpi = 0.5)
-            write2.(tibble(!!str_c('ボロノイ_', img0) := area_voronoi, !!str_c('ドロネ－_', img0) := area_delaunay), name = save_name)
+            write2.(list(ボロノイ1 = tibble(!!str_c('ボロノイ_', img0) := area_voronoi),
+                         ボロノイ2 = tibble(ボロノイ = area_voronoi, 画像 = img0),
+                         ドロネィ1 = tibble(!!str_c('ドロネィ_', img0) := area_delaunay),
+                         ドロネィ2 = tibble(ドロネィ = area_delaunay, 画像 = img0)
+                    ),
+                    name = save_name
+            )
         }
         gp.()
         cat('終了しました．\n\n')
@@ -3668,7 +3674,6 @@ voronoi. <- function(x = NULL, y = NULL, doro = F, demo = F, ...) {
             voronoi_plot(d)
             break
         }
-
     }
 # voronoi.(demo = T)
 }
