@@ -3796,7 +3796,7 @@ pmax. <- function(x) omit2.(x) %>% pmax()
 
 pmin. <- function(x) omit2.(x) %>% pmin()
 
-any. <- function(x) as.logical(x) %>% any(., na.rm = T)
+any. <- function(x) as.logical(x) %>% any(., na.rm = T)  # any.(NA)  any.(NULL)  any.(character(0))  any.('nya'')
 
 ymd. <- function(x) if (is.POSIXct (x)) floor_date(x, 'day') %>% as.character() %>% gsub(' JST', '', .) else x
 
@@ -3951,9 +3951,8 @@ min2. <- function(x, na = F) {
         out <- if (na == T && setequal(whisker, Min)) NA_real_ else max(c(whisker, Min), na.rm = T)
         return(out)
     }
-    `if` (is.atomic(x), min2_base.(x, na)
-    `if` (is.list(x), list2tibble.(x) %>%
-                      map_df(~ if (is.numeric(.)) min2_base.(., na) else NA_real_), NA_real_))
+    `if` (is.atomic(x), min2_base.(x, na),
+    `if` (is.list(x), list2tibble.(x) %>% map_df(~ min2_base.(., na)), NA_real_))
 }
 
 max2. <- function(x, na = F) {
@@ -3964,12 +3963,11 @@ max2. <- function(x, na = F) {
         return(out)
     }
     `if` (is.atomic(x), max2_base.(x, na),
-    `if` (is.list(x), list2tibble.(x) %>%
-                      map_df(~ if (is.numeric(.)) max_base0.(., na) else NA_real_), NA_real_))
+    `if` (is.list(x), list2tibble.(x) %>% map_df(~ max2_base.(., na)), NA_real_))
 }
 
 sd. <- function(x) {
-    `if` (is.atomic(x) && !(is.character(x) && !is.factor(x)), omit2.(x) %>% sd()
+    `if` (is.atomic(x) && !(is.character(x) && !is.factor(x)), sd(x, na.rm = T),
     `if` (is.list(x), list2tibble.(x) %>%
                       map_df(~ if (is.numeric(.) | is_time.(.) | is.logical(.)) omit2.(.) %>% sd() else NA_real_), NA_real_))
 }
@@ -3997,7 +3995,7 @@ var. <- function(x) {
 skew. <- function(x) {
     `if` (is.atomic(x) && is.numeric(x), omit2.(x) %>%
                                          {(. - mean(.)) ^3 / sd(.) ^ 3} %>%
-                                         mean()
+                                         mean(),
     `if` (is.list(x), list2tibble.(x) %>%
                       map_df(~ if (is.numeric(.)) omit2.(.) %>% {(. -mean(.)) ^3 /sd(.) ^3} %>% mean() else NA_real_), NA_real_))
 }
@@ -4017,7 +4015,7 @@ skew_reg. <- function(x) {
 kurt. <- function(x) {
     `if` (is.atomic(x) && is.numeric(x), omit2.(x) %>%
                                          {(. -mean(.)) ^4 /sd(.) ^4} %>%
-                                         mean(.),       
+                                         mean(.),
     `if` (is.list(x), list2tibble.(x) %>%
                       map_df(~ if (is.numeric(.)) omit2.(.) %>% {(. -mean(.)) ^4 /sd(.) ^4} %>% mean(.) else NA_real_), NA_real_))
 }
@@ -4152,6 +4150,7 @@ gini. <- function(x) {
 
 ## Hurst exponent: https://ito-hi.blog.ss-blog.jp/2016-10-15
 hurst. <- function(x) {  # the trend keeping ability random ~ 0.5, plus regular ~ 0.5-1, minus ~ 0-0.5
+    query_lib.(pracma)
     `if` (is.atomic(x), omit2.(x) %>%
                         {pracma::hurstexp(., display = F)$Hs},
     `if` (is.list(x), list2tibble.(x) %>%
@@ -4246,7 +4245,7 @@ which.max. <- function(x, Nth = 1) {  # which.max0.(c(9, NA, 8:1), 1:2)  which.m
 }
 
 sum. <- function(x) {  # Note; sum function eats T/F
-    `if` (is.atomic(x) && is.numeric(x) || is.logical(x), omit2.(x) %>% sum()
+    `if` (is.atomic(x) && is.numeric(x) || is.logical(x), omit2.(x) %>% sum(),
     `if` (is.list(x), list2tibble.(x) %>%
                       map_df(~ if (is.numeric(.) | is_time.(.) | is.logical(.)) omit2.(.) %>% sum() else NA_real_), NA_real_))
 }
